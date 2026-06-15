@@ -1,0 +1,15 @@
+Library/
+Temp/
+Obj/
+Build/
+Builds/
+Logs/
+UserSettings/
+*.csproj
+*.sln
+*.suo
+*.tmp
+*.user
+.DS_Store
+*.apk
+*.unitypackage

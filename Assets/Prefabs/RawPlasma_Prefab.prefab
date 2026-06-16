@@ -154,7 +154,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36f71e1b1c3ed5e429bfd4ade33eea5b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::PickupItem
-  <Type>k__BackingField: 3
+  <Type>k__BackingField: 1
 --- !u!114 &6780200860839072380
 MonoBehaviour:
   m_ObjectHideFlags: 0

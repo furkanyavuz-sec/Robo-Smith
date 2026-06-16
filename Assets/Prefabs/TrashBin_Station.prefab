@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &835808559990903877
+--- !u!1 &779889339711089532
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,51 +8,48 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 1590448798910195505}
-  - component: {fileID: 5494240952479817207}
-  - component: {fileID: 6856627116059284082}
-  - component: {fileID: 952226568678260848}
-  - component: {fileID: 77697962138492528}
-  - component: {fileID: 3705702219123968213}
-  - component: {fileID: 9203266258722732735}
-  - component: {fileID: 2164033626733081799}
-  m_Layer: 0
-  m_Name: BattleRobot_Prefab
+  - component: {fileID: 1634828960333477835}
+  - component: {fileID: 447781248412422429}
+  - component: {fileID: 6822995632759787154}
+  - component: {fileID: 7098625046097668202}
+  - component: {fileID: 6128022942474243211}
+  m_Layer: 7
+  m_Name: TrashBin_Station
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &1590448798910195505
+--- !u!4 &1634828960333477835
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
+  m_GameObject: {fileID: 779889339711089532}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.85585, y: 0, z: 0.2767}
+  m_LocalPosition: {x: 4.054, y: 0.5, z: 0.80959}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &5494240952479817207
+--- !u!33 &447781248412422429
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
+  m_GameObject: {fileID: 779889339711089532}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
---- !u!23 &6856627116059284082
+--- !u!23 &6822995632759787154
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
+  m_GameObject: {fileID: 779889339711089532}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -95,13 +92,13 @@ MeshRenderer:
   m_SortingOrder: 0
   m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!65 &952226568678260848
+--- !u!65 &7098625046097668202
 BoxCollider:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
+  m_GameObject: {fileID: 779889339711089532}
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -116,74 +113,18 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
---- !u!195 &77697962138492528
-NavMeshAgent:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
-  m_Enabled: 1
-  m_AgentTypeID: 0
-  m_Radius: 0.5
-  m_Speed: 3.5
-  m_Acceleration: 8
-  avoidancePriority: 50
-  m_AngularSpeed: 120
-  m_StoppingDistance: 0
-  m_AutoTraverseOffMeshLink: 1
-  m_AutoBraking: 1
-  m_AutoRepath: 1
-  m_Height: 1
-  m_BaseOffset: 0.5
-  m_WalkableMask: 4294967295
-  m_ObstacleAvoidanceType: 4
---- !u!114 &3705702219123968213
+--- !u!114 &6128022942474243211
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
+  m_GameObject: {fileID: 779889339711089532}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f571c0373d707b94fa38b6a7c9401836, type: 3}
+  m_Script: {fileID: 11500000, guid: 0789fbe290f8a104e8036b59a7d01f90, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::BattleRobot
-  chaseSpeed: 4
-  fleeSpeed: 5.5
-  fleeDistance: 10
-  repairHPThreshold: 0.3
-  repairRate: 5
-  repairExitThreshold: 0.6
-  healthBar: {fileID: 0}
-  bodyRenderer: {fileID: 0}
---- !u!114 &9203266258722732735
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 5e28ca459159cc54f9dd596bc8e01f37, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RobotHealthBar
-  worldCanvas: {fileID: 0}
-  fillImage: {fileID: 0}
-  barPivot: {fileID: 0}
-  fullColor: {r: 0, g: 1, b: 0, a: 1}
-  emptyColor: {r: 1, g: 0, b: 0, a: 1}
---- !u!114 &2164033626733081799
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 835808559990903877}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: d999053aacd50e140ba3c817d1dcb10b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::EMPEffect
+  m_EditorClassIdentifier: Assembly-CSharp::TrashBin
+  stationName: "\u0130stasyon"
+  interactPrompt: "E: Etkile\u015Fim"
+  destroyDelay: 0.15

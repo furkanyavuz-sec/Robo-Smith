@@ -51,6 +51,8 @@ public class BattleRobot : MonoBehaviour
     public int TeamID { get; private set; }
     public int       CurrentHP => currentHP;
 
+    public int       MaxHP     => maxHP;
+
     // ── Başlatma ─────────────────────────────────────────────────────────
 
     public void Initialize(RobotStatSheet sheet, ArmorType armor, int teamId)

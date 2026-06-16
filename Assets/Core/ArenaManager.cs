@@ -17,6 +17,8 @@ public class ArenaManager : MonoBehaviour
 
     private List<BattleRobot> playerRobots   = new();
     private List<BattleRobot> opponentRobots = new();
+    public List<BattleRobot> GetPlayerRobots()   => playerRobots;
+    public List<BattleRobot> GetOpponentRobots() => opponentRobots;
     private bool matchOver = false;
 
     private void Awake()
@@ -28,29 +30,92 @@ public class ArenaManager : MonoBehaviour
     private void Start() => SpawnRobots();
 
     private void SpawnRobots()
+{
+    if (MatchData.Instance == null)
     {
-        if (MatchData.Instance == null)
-        {
-            Debug.LogError("[ArenaManager] MatchData bulunamadı!");
-            return;
-        }
-
-        SpawnTeam(
-            MatchData.Instance.PlayerTeamSheets,
-            MatchData.Instance.PlayerTeamArmors,
-            playerSpawnPoints, 0, playerRobots
-        );
-
-        SpawnTeam(
-            MatchData.Instance.OpponentTeamSheets,
-            MatchData.Instance.OpponentTeamArmors,
-            opponentSpawnPoints, 1, opponentRobots
-        );
-
-        Debug.Log($"[ArenaManager] Oyuncu: {playerRobots.Count} | " +
-                  $"Rakip: {opponentRobots.Count} — SAVAŞ BAŞLIYOR!");
+        Debug.LogWarning("[ArenaManager] MatchData yok, varsayilan robotlar spawn ediliyor.");
+        SpawnDefaultRobots();
+        return;
     }
 
+    // MatchData boşsa varsayılan robot spawn et
+    if (MatchData.Instance.PlayerTeamSheets.Count == 0)
+    {
+        Debug.LogWarning("[ArenaManager] PlayerTeam bos, varsayilan robot spawn ediliyor.");
+        SpawnDefaultRobots();
+        return;
+    }
+
+    SpawnTeam(
+        MatchData.Instance.PlayerTeamSheets,
+        MatchData.Instance.PlayerTeamArmors,
+        playerSpawnPoints, 0, playerRobots
+    );
+
+    SpawnTeam(
+        MatchData.Instance.OpponentTeamSheets,
+        MatchData.Instance.OpponentTeamArmors,
+        opponentSpawnPoints, 1, opponentRobots
+    );
+
+    Debug.Log($"[ArenaManager] Oyuncu: {playerRobots.Count} | " +
+              $"Rakip: {opponentRobots.Count} — SAVAS BASLIYOR!");
+}
+
+    private void SpawnDefaultRobots()
+{
+    // Varsayilan stat sheet
+    RobotStatSheet defaultPlayerSheet = new RobotStatSheet
+    {
+        HP  = 150,
+        ATK = 80,
+        SPD = 60,
+        DEF = 40
+    };
+
+    RobotStatSheet defaultOpponentSheet = new RobotStatSheet
+    {
+        HP  = 120,
+        ATK = 70,
+        SPD = 50,
+        DEF = 30
+    };
+
+    // Varsayilan silah ekle
+    defaultPlayerSheet.equippedWeapons[0]   = WeaponData.Create(ItemType.Sword);
+    defaultPlayerSheet.weaponCount          = 1;
+    defaultOpponentSheet.equippedWeapons[0] = WeaponData.Create(ItemType.Laser);
+    defaultOpponentSheet.weaponCount        = 1;
+
+    // Oyuncu robotu spawn et
+    if (playerSpawnPoints.Length > 0)
+    {
+        GameObject obj = Instantiate(
+            robotPrefab,
+            playerSpawnPoints[0].position,
+            playerSpawnPoints[0].rotation
+        );
+        BattleRobot robot = obj.GetComponent<BattleRobot>();
+        robot.Initialize(defaultPlayerSheet, ArmorType.HeavyPlate, 0);
+        playerRobots.Add(robot);
+    }
+
+    // Rakip robotu spawn et
+    if (opponentSpawnPoints.Length > 0)
+    {
+        GameObject obj = Instantiate(
+            robotPrefab,
+            opponentSpawnPoints[0].position,
+            opponentSpawnPoints[0].rotation
+        );
+        BattleRobot robot = obj.GetComponent<BattleRobot>();
+        robot.Initialize(defaultOpponentSheet, ArmorType.EnergyShield, 1);
+        opponentRobots.Add(robot);
+    }
+
+    Debug.Log($"[ArenaManager] Varsayilan robotlar spawn edildi. " +
+              $"Oyuncu: {playerRobots.Count} | Rakip: {opponentRobots.Count}");
+}
     private void SpawnTeam(
         List<RobotStatSheet> sheets,
         List<ArmorType>      armors,
@@ -100,14 +165,21 @@ public class ArenaManager : MonoBehaviour
     }
 
     private void DetermineWinner()
-    {
-        matchOver = true;
-        bool playerWon = opponentRobots.Count == 0 && playerRobots.Count > 0;
+{
+    matchOver = true;
+    bool playerWon = opponentRobots.Count == 0 && playerRobots.Count > 0;
 
-        Debug.Log(playerWon
-            ? "<color=green>[ArenaManager] 🏆 OYUNCU KAZANDI!</color>"
-            : "<color=red>[ArenaManager] 💀 RAKİP KAZANDI!</color>");
+    Debug.Log(playerWon
+        ? "<color=green>[ArenaManager] 🏆 OYUNCU KAZANDI!</color>"
+        : "<color=red>[ArenaManager] 💀 RAKİP KAZANDI!</color>");
 
-        GameManager.Instance?.OnMatchOver(playerWon);
-    }
+    // HUD'a bildir
+    ArenaHUDManager.Instance?.OnMatchOver(
+        playerWon,
+        playerRobots.Count,
+        opponentRobots.Count
+    );
+
+    GameManager.Instance?.OnMatchOver(playerWon);
+}
 }

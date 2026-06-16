@@ -19,6 +19,8 @@ public class PlayerInteraction : MonoBehaviour
     [Header("Debug")]
     [SerializeField] private string nearbyStationName = ""; // Inspector'da durum takibi için
 
+    [Header("Zırh Seçimi")]
+    [SerializeField] private ArmorSelectUI armorSelectUI;
     // ── Public API (istasyonların eriştiği alanlar) ──
     public GameObject HeldObject => heldObject;
 
@@ -27,20 +29,23 @@ public class PlayerInteraction : MonoBehaviour
     private Rigidbody  heldRb;
 
     private void Update()
-    {
-        if (Keyboard.current == null) return;
+{
+    if (Keyboard.current == null) return;
 
-        // E tuşu → normal etkileşim (zırh/stat veya istasyon)
-        if (Keyboard.current.eKey.wasPressedThisFrame)
-            HandleInteract(RobotChassis.InteractMode.AddToArmor);
+    // E tuşu → normal etkileşim
+    if (Keyboard.current.eKey.wasPressedThisFrame)
+        HandleInteract(RobotChassis.InteractMode.AddToArmor);
 
-        // Q tuşu → sadece şasi upgrade modu
-        if (Keyboard.current.qKey.wasPressedThisFrame)
-            HandleInteractUpgrade();
+    // Q tuşu → silah upgrade
+    if (Keyboard.current.qKey.wasPressedThisFrame)
+        HandleInteractUpgrade();
 
-        if (heldObject != null)
-            LockToHoldPoint();
-    }
+    // Tab → zırh geçişi (ArmorSelectUI hallediyor)
+    // F → zırh seçimi (ArmorSelectUI hallediyor)
+
+    if (heldObject != null)
+        LockToHoldPoint();
+}
 
     // ── Ana etkileşim akışı ──
     // Önce istasyona bak, sonra yerdeki nesneye.

@@ -42,7 +42,7 @@ public class VisualThemeManager : MonoBehaviour
     private void ApplyStationThemes()
     {
         // Sahnedeki tüm BaseStation türevlerini bul
-        BaseStation[] stations = FindObjectsByType<BaseStation>(FindObjectsSortMode.None);
+        BaseStation[] stations = FindObjectsByType<BaseStation>();
 
         Debug.Log($"[VisualTheme] {stations.Length} istasyon bulundu.");
 
@@ -70,7 +70,7 @@ public class VisualThemeManager : MonoBehaviour
     private void ApplyPlayerTheme()
     {
         PlayerInteraction player =
-            FindFirstObjectByType<PlayerInteraction>();
+            FindAnyObjectByType<PlayerInteraction>();
 
         if (player == null)
         {
@@ -87,7 +87,7 @@ public class VisualThemeManager : MonoBehaviour
 
     private void ApplyItemThemes()
     {
-        PickupItem[] items = FindObjectsByType<PickupItem>(FindObjectsSortMode.None);
+        PickupItem[] items = FindObjectsByType<PickupItem>();
 
         foreach (PickupItem item in items)
             ApplyItemColor(item);

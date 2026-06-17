@@ -39,6 +39,8 @@ public class BattleRobot : MonoBehaviour
     private int  maxHP;
     private int  currentHP;
 
+    public RobotStatSheet StatSheet => statSheet;
+
     // Silah cooldown takibi
     private Dictionary<WeaponData, float> lastAttackTimes = new();
 
@@ -52,6 +54,11 @@ public class BattleRobot : MonoBehaviour
     public int       CurrentHP => currentHP;
 
     public int       MaxHP     => maxHP;
+
+    private RobotMemory        memory;
+    private TargetSelector     targetSelector;
+    private TacticalPositioner positioner;
+    private WeaponBehavior     weaponBehavior;
 
     // ── Başlatma ─────────────────────────────────────────────────────────
 
@@ -68,6 +75,13 @@ public class BattleRobot : MonoBehaviour
         agent.speed       = chaseSpeed;
         empEffect         = GetComponent<EMPEffect>();
         propBlock         = new MaterialPropertyBlock();
+
+        memory         = GetComponent<RobotMemory>();
+        targetSelector = GetComponent<TargetSelector>();
+        positioner     = GetComponent<TacticalPositioner>();
+        weaponBehavior = GetComponent<WeaponBehavior>();
+
+        memory?.Reset();
 
         // Kalkan silahı varsa ShieldController başlat
         WeaponData shieldWeapon = GetWeaponOfCategory(WeaponCategory.Defensive);
@@ -87,85 +101,129 @@ public class BattleRobot : MonoBehaviour
     // ── Update / FSM ─────────────────────────────────────────────────────
 
     private void Update()
+{
+    if (IsDead) return;
+    if (empEffect != null && empEffect.IsFrozen) return;
+
+    // Hedef seçimini TargetSelector'a bırak
+    currentTarget = targetSelector?.CurrentTarget
+                 ?? ArenaManager.Instance?.GetClosestEnemy(this);
+
+    if (currentTarget == null) return;
+
+    // Role göre davranış
+    RobotRole role = TeamCoordinator.Instance?.GetRole(this)
+                  ?? RobotRole.Aggressor;
+
+    // Kalkan aktifleştirme
+    if (weaponBehavior != null && weaponBehavior.ShouldActivateShield())
+        shieldController?.TryActivate();
+
+    if (ShouldRepair() && currentState != RobotState.Repair)
+        EnterRepair();
+
+    switch (currentState)
     {
-        if (IsDead) return;
-
-        // EMP dondurulmuşsa hiçbir şey yapma
-        if (empEffect != null && empEffect.IsFrozen) return;
-
-        if (currentTarget == null || currentTarget.IsDead)
-            currentTarget = ArenaManager.Instance?.GetClosestEnemy(this);
-
-        if (currentTarget == null) return;
-
-        if (ShouldRepair() && currentState != RobotState.Repair)
-            EnterRepair();
-
-        // Kritik HP'de kalkanı aktifleştir
-        if (shieldController != null && ShouldRepair())
-            shieldController.TryActivate();
-
-        switch (currentState)
-        {
-            case RobotState.Chase:  TickChase();  break;
-            case RobotState.Attack: TickAttack(); break;
-            case RobotState.Flee:   TickFlee();   break;
-            case RobotState.Repair: TickRepair(); break;
-        }
-
-        UpdateBodyColor();
+        case RobotState.Chase:  TickChase(role);  break;
+        case RobotState.Attack: TickAttack();      break;
+        case RobotState.Flee:   TickFlee();        break;
+        case RobotState.Repair: TickRepair();      break;
     }
+
+    UpdateBodyColor();
+}
 
     // ── FSM State'leri ───────────────────────────────────────────────────
 
-    private void TickChase()
+    private void TickChase(RobotRole role)
+{
+    agent.speed = chaseSpeed;
+
+    Vector3 destination;
+
+    switch (role)
     {
-        agent.speed = chaseSpeed;
-        agent.SetDestination(currentTarget.transform.position);
+        case RobotRole.Aggressor:
+            // Flanklama hareketi
+            destination = positioner != null
+                ? positioner.GetFlankPosition(currentTarget)
+                : currentTarget.transform.position;
+            break;
 
-        float dist = DistanceTo(currentTarget);
+        case RobotRole.Support:
+            // Takım arkadaşının yanında konumlan
+            BattleRobot ally = TeamCoordinator.Instance?.GetAllyToProtect(this);
+            destination = ally != null && positioner != null
+                ? positioner.GetSupportPosition(ally)
+                : currentTarget.transform.position;
+            break;
 
-        bool hasRanged = GetWeaponOfCategory(WeaponCategory.Ranged) != null
-                      || GetWeaponOfCategory(WeaponCategory.AOE)    != null;
+        case RobotRole.Defender:
+            // Engel arkasına çekil
+            destination = positioner != null
+                ? positioner.GetCoverPosition(currentTarget)
+                : transform.position;
+            break;
 
-        if (hasRanged && dist < fleeDistance * 0.5f)
-        {
-            currentState = RobotState.Flee;
-            return;
-        }
-
-        WeaponData best = GetBestWeapon(dist);
-        if (best != null && dist <= best.effectiveRange)
-            currentState = RobotState.Attack;
+        default:
+            destination = currentTarget.transform.position;
+            break;
     }
+
+    agent.SetDestination(destination);
+
+    float dist = DistanceTo(currentTarget);
+
+    bool hasRanged = GetWeaponOfCategory(WeaponCategory.Ranged) != null
+                  || GetWeaponOfCategory(WeaponCategory.AOE)    != null;
+
+    if (hasRanged && dist < fleeDistance * 0.5f)
+    {
+        currentState = RobotState.Flee;
+        return;
+    }
+
+    WeaponData best = GetBestWeapon(dist);
+    if (best != null && dist <= best.effectiveRange)
+        currentState = RobotState.Attack;
+}
+
 
     private void TickAttack()
+{
+    float      dist   = DistanceTo(currentTarget);
+    WeaponData weapon = GetBestWeaponForDistance(dist);
+
+    if (weapon == null) { currentState = RobotState.Chase; return; }
+
+    if (dist <= weapon.effectiveRange)
+        agent.ResetPath();
+    else
+        agent.SetDestination(currentTarget.transform.position);
+
+    if (currentTarget == null || currentTarget.IsDead)
     {
-        float      dist   = DistanceTo(currentTarget);
-        WeaponData weapon = GetBestWeapon(dist);
-
-        if (weapon == null) { currentState = RobotState.Chase; return; }
-
-        if (dist <= weapon.effectiveRange)
-            agent.ResetPath();
-        else
-            agent.SetDestination(currentTarget.transform.position);
-
-        if (currentTarget == null || currentTarget.IsDead)
-        {
-            currentState = RobotState.Chase;
-            return;
-        }
-
-        FaceTarget(currentTarget.transform);
-
-        if (IsWeaponReady(weapon) && dist <= weapon.effectiveRange)
-            FireWeapon(weapon, currentTarget);
-
-        bool hasRanged = GetWeaponOfCategory(WeaponCategory.Ranged) != null;
-        if (hasRanged && dist < fleeDistance * 0.4f)
-            currentState = RobotState.Flee;
+        currentState = RobotState.Chase;
+        return;
     }
+
+    FaceTarget(currentTarget.transform);
+
+    if (dist <= weapon.effectiveRange)
+    {
+        // Cooldown kontrolü — lastAttackTimes'dan direkt oku
+        float lastTime = 0f;
+        lastAttackTimes.TryGetValue(weapon, out lastTime);
+        bool ready = Time.time - lastTime >= weapon.attackCooldown;
+
+        if (ready)
+            FireWeapon(weapon, currentTarget);
+    }
+
+    bool hasRanged = GetWeaponOfCategory(WeaponCategory.Ranged) != null;
+    if (hasRanged && dist < fleeDistance * 0.4f)
+        currentState = RobotState.Flee;
+}
 
     private void TickFlee()
     {
@@ -231,31 +289,45 @@ public class BattleRobot : MonoBehaviour
 
     private void FireRanged(WeaponData weapon, BattleRobot target)
 {
-    if (weapon.projectilePrefab == null) return;
-
-    GameObject proj = Instantiate(
-        weapon.projectilePrefab,
-        transform.position + Vector3.up,
-        Quaternion.identity
-    );
-
-    if (proj.TryGetComponent<Projectile>(out Projectile p))
-        p.Initialize((int)TeamID, target.transform, GetFinalDamage(weapon));
-}
-
-    private void FireRocket(WeaponData weapon, BattleRobot target)
+    if (weapon.projectilePrefab != null)
     {
-        if (weapon.projectilePrefab == null) return;
-
         GameObject proj = Instantiate(
             weapon.projectilePrefab,
             transform.position + Vector3.up,
             Quaternion.identity
         );
-
-        if (proj.TryGetComponent<RocketProjectile>(out RocketProjectile r))
-            r.Initialize(TeamID, target.transform, GetFinalDamage(weapon), weapon.aoeRadius);
+        if (proj.TryGetComponent<Projectile>(out Projectile p))
+            p.Initialize((int)TeamID, target.transform, GetFinalDamage(weapon));
+        return;
     }
+
+    // Prefab yoksa anlık hasar
+    target.TakeDamage(GetFinalDamage(weapon), WeaponCategory.Ranged, this);
+}
+
+    private void FireRocket(WeaponData weapon, BattleRobot target)
+{
+    if (weapon.projectilePrefab != null)
+    {
+        GameObject proj = Instantiate(
+            weapon.projectilePrefab,
+            transform.position + Vector3.up,
+            Quaternion.identity
+        );
+        if (proj.TryGetComponent<RocketProjectile>(out RocketProjectile r))
+            r.Initialize((int)TeamID, target.transform, GetFinalDamage(weapon), weapon.aoeRadius);
+        return;
+    }
+
+    // Prefab yoksa AOE anlık hasar
+    Collider[] hits = Physics.OverlapSphere(target.transform.position, weapon.aoeRadius);
+    foreach (Collider col in hits)
+    {
+        BattleRobot hit = col.GetComponentInParent<BattleRobot>();
+        if (hit == null || hit.TeamID == TeamID) continue;
+        hit.TakeDamage(GetFinalDamage(weapon), WeaponCategory.AOE, this);
+    }
+}
 
     private void FireEMP(WeaponData weapon, BattleRobot target)
 {
@@ -266,17 +338,14 @@ public class BattleRobot : MonoBehaviour
             transform.position + Vector3.up,
             Quaternion.identity
         );
-
         if (proj.TryGetComponent<Projectile>(out Projectile p))
             p.Initialize((int)TeamID, target.transform, GetFinalDamage(weapon));
+    }
 
+    // Prefab olsa da olmasa da EMP etkisini uygula
+    float dist = DistanceTo(target);
+    if (dist <= weapon.effectiveRange)
         target.ApplyEMP(weapon.debuffDuration);
-    }
-    else
-    {
-        if (DistanceTo(target) <= weapon.effectiveRange)
-            target.ApplyEMP(weapon.debuffDuration);
-    }
 }
 
     // ── Hasar Alma ───────────────────────────────────────────────────────
@@ -286,9 +355,13 @@ public class BattleRobot : MonoBehaviour
     /// Kalkan varsa önce TryBlock'a sor.
     /// </summary>
     public void TakeDamage(int rawDamage, WeaponCategory attackerCategory,
-                           BattleRobot attacker = null)
-    {
-        if (IsDead) return;
+                       BattleRobot attacker = null)
+{
+    if (IsDead) return;
+
+    // Belleğe kaydet
+    if (attacker != null)
+        memory?.RecordDamage(attacker, rawDamage);
 
         // Kalkan kontrolü
         if (shieldController != null &&
@@ -341,33 +414,59 @@ public class BattleRobot : MonoBehaviour
     }
 
     // ── Silah Yardımcıları ───────────────────────────────────────────────
+    private WeaponData GetBestWeaponForDistance(float distance)
+{
+    WeaponData melee  = GetWeaponOfCategory(WeaponCategory.Melee);
+    WeaponData ranged = GetWeaponOfCategory(WeaponCategory.Ranged);
+    WeaponData aoe    = GetWeaponOfCategory(WeaponCategory.AOE);
+    WeaponData emp    = GetWeaponOfCategory(WeaponCategory.Debuff);
 
-    private WeaponData GetBestWeapon(float distance)
-    {
-        WeaponData melee  = GetWeaponOfCategory(WeaponCategory.Melee);
-        WeaponData ranged = GetWeaponOfCategory(WeaponCategory.Ranged);
-        WeaponData aoe    = GetWeaponOfCategory(WeaponCategory.AOE);
-        WeaponData emp    = GetWeaponOfCategory(WeaponCategory.Debuff);
+    if (melee  != null && distance <= melee.effectiveRange)  return melee;
+    if (ranged != null && distance <= ranged.effectiveRange) return ranged;
+    if (aoe    != null && distance <= aoe.effectiveRange)    return aoe;
+    if (emp    != null && distance <= emp.effectiveRange)    return emp;
 
-        if (melee  != null && distance <= melee.effectiveRange)  return melee;
-        if (ranged != null && distance <= ranged.effectiveRange) return ranged;
-        if (aoe    != null && distance <= aoe.effectiveRange)    return aoe;
-        if (emp    != null && distance <= emp.effectiveRange)    return emp;
-
-        // Menzil dışında — en uzun menzilli silahı döndür (yaklaşmaya devam)
-        WeaponData longest = null;
-        float      maxRange = 0f;
-        foreach (WeaponData w in GetAllWeapons())
+    // Menzil dışı — en uzun menzilli
+    WeaponData longest  = null;
+    float      maxRange = 0f;
+    foreach (WeaponData w in GetAllWeapons())
+        if (w != null && w.effectiveRange > maxRange)
         {
-            if (w.effectiveRange > maxRange)
-            {
-                maxRange = w.effectiveRange;
-                longest  = w;
-            }
+            maxRange = w.effectiveRange;
+            longest  = w;
         }
-        return longest;
+    return longest;
+}
+    private WeaponData GetBestWeapon(float distance)
+{
+    // WeaponBehavior varsa ona sor
+    if (weaponBehavior != null)
+    {
+        List<BattleRobot> enemies = ArenaManager.Instance?.GetEnemiesOf(TeamID);
+        return weaponBehavior.SelectWeapon(currentTarget, distance, enemies);
     }
 
+    // Fallback — eski sistem
+    WeaponData melee  = GetWeaponOfCategory(WeaponCategory.Melee);
+    WeaponData ranged = GetWeaponOfCategory(WeaponCategory.Ranged);
+    WeaponData aoe    = GetWeaponOfCategory(WeaponCategory.AOE);
+    WeaponData emp    = GetWeaponOfCategory(WeaponCategory.Debuff);
+
+    if (melee  != null && distance <= melee.effectiveRange)  return melee;
+    if (ranged != null && distance <= ranged.effectiveRange) return ranged;
+    if (aoe    != null && distance <= aoe.effectiveRange)    return aoe;
+    if (emp    != null && distance <= emp.effectiveRange)    return emp;
+
+    return GetLongestRangeWeaponFallback();
+}
+    private WeaponData GetLongestRangeWeaponFallback()
+{
+    WeaponData longest = null;
+    float      maxRange = 0f;
+    foreach (WeaponData w in GetAllWeapons())
+        if (w.effectiveRange > maxRange) { maxRange = w.effectiveRange; longest = w; }
+    return longest;
+}
     private WeaponData GetWeaponOfCategory(WeaponCategory cat)
     {
         if (statSheet == null) return null;
@@ -391,11 +490,21 @@ public class BattleRobot : MonoBehaviour
         return Mathf.RoundToInt(weapon.damage * overtimeMult);
     }
 
-    private bool IsWeaponReady(WeaponData weapon)
+    public bool IsWeaponReady(WeaponData weapon)
+{
+    if (weapon == null) return false;
+    
+    if (!lastAttackTimes.TryGetValue(weapon, out float last))
     {
-        if (!lastAttackTimes.TryGetValue(weapon, out float last)) return true;
-        return Time.time - last >= weapon.attackCooldown;
+        return true;
     }
+    
+    float elapsed = Time.time - last;
+    Debug.Log($"[WeaponReady] {weapon.weaponName} | Gecen: {elapsed:F1}s | " +
+              $"Cooldown: {weapon.attackCooldown}s | Hazir: {elapsed >= weapon.attackCooldown}");
+    
+    return elapsed >= weapon.attackCooldown;
+}
 
     private void SetWeaponCooldown(WeaponData weapon)
     {

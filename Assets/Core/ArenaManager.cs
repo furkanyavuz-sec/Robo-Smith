@@ -64,57 +64,55 @@ public class ArenaManager : MonoBehaviour
 
     private void SpawnDefaultRobots()
 {
-    // Varsayilan stat sheet
-    RobotStatSheet defaultPlayerSheet = new RobotStatSheet
+    // Oyuncu robotu — dengeli build
+    RobotStatSheet playerSheet = new RobotStatSheet
     {
-        HP  = 150,
-        ATK = 80,
-        SPD = 60,
+        HP  = 500,
+        ATK = 120,
+        SPD = 80,
+        DEF = 60
+    };
+
+    playerSheet.equippedWeapons[0] = WeaponData.Create(ItemType.Sword);
+    playerSheet.equippedWeapons[1] = WeaponData.Create(ItemType.Laser);
+    playerSheet.equippedWeapons[2] = WeaponData.Create(ItemType.Shield);
+    playerSheet.weaponCount        = 3;
+
+    // Rakip robotu — farklı build
+    RobotStatSheet opponentSheet = new RobotStatSheet
+    {
+        HP  = 450,
+        ATK = 140,
+        SPD = 90,
         DEF = 40
     };
 
-    RobotStatSheet defaultOpponentSheet = new RobotStatSheet
-    {
-        HP  = 120,
-        ATK = 70,
-        SPD = 50,
-        DEF = 30
-    };
+    opponentSheet.equippedWeapons[0] = WeaponData.Create(ItemType.Rocket);
+    opponentSheet.equippedWeapons[1] = WeaponData.Create(ItemType.EMP);
+    opponentSheet.equippedWeapons[2] = WeaponData.Create(ItemType.Laser);
+    opponentSheet.weaponCount        = 3;
 
-    // Varsayilan silah ekle
-    defaultPlayerSheet.equippedWeapons[0]   = WeaponData.Create(ItemType.Sword);
-    defaultPlayerSheet.weaponCount          = 1;
-    defaultOpponentSheet.equippedWeapons[0] = WeaponData.Create(ItemType.Laser);
-    defaultOpponentSheet.weaponCount        = 1;
-
-    // Oyuncu robotu spawn et
+    // Oyuncu spawn
     if (playerSpawnPoints.Length > 0)
     {
-        GameObject obj = Instantiate(
-            robotPrefab,
-            playerSpawnPoints[0].position,
-            playerSpawnPoints[0].rotation
-        );
+        GameObject obj   = Instantiate(robotPrefab,
+            playerSpawnPoints[0].position, playerSpawnPoints[0].rotation);
         BattleRobot robot = obj.GetComponent<BattleRobot>();
-        robot.Initialize(defaultPlayerSheet, ArmorType.HeavyPlate, 0);
+        robot.Initialize(playerSheet, ArmorType.HeavyPlate, 0);
         playerRobots.Add(robot);
     }
 
-    // Rakip robotu spawn et
+    // Rakip spawn
     if (opponentSpawnPoints.Length > 0)
     {
-        GameObject obj = Instantiate(
-            robotPrefab,
-            opponentSpawnPoints[0].position,
-            opponentSpawnPoints[0].rotation
-        );
+        GameObject obj   = Instantiate(robotPrefab,
+            opponentSpawnPoints[0].position, opponentSpawnPoints[0].rotation);
         BattleRobot robot = obj.GetComponent<BattleRobot>();
-        robot.Initialize(defaultOpponentSheet, ArmorType.EnergyShield, 1);
+        robot.Initialize(opponentSheet, ArmorType.ReactiveArmor, 1);
         opponentRobots.Add(robot);
     }
 
-    Debug.Log($"[ArenaManager] Varsayilan robotlar spawn edildi. " +
-              $"Oyuncu: {playerRobots.Count} | Rakip: {opponentRobots.Count}");
+    Debug.Log($"[ArenaManager] Varsayilan robotlar spawn edildi.");
 }
     private void SpawnTeam(
         List<RobotStatSheet> sheets,
@@ -181,5 +179,9 @@ public class ArenaManager : MonoBehaviour
     );
 
     GameManager.Instance?.OnMatchOver(playerWon);
+}
+    public List<BattleRobot> GetEnemiesOf(int teamID)
+{
+    return teamID == 0 ? opponentRobots : playerRobots;
 }
 }

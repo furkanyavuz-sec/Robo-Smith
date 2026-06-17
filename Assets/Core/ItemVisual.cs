@@ -15,7 +15,7 @@ public class ItemVisual : MonoBehaviour
         PickupItem item = GetComponent<PickupItem>();
 
         VisualThemeManager theme =
-            FindFirstObjectByType<VisualThemeManager>();
+            FindAnyObjectByType<VisualThemeManager>();
 
         if (theme == null)
         {

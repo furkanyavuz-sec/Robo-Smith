@@ -17,7 +17,6 @@ public class PlayerInteraction : MonoBehaviour
     [SerializeField] private LayerMask stationLayer;         // Inspector'da "Station" layer
     [SerializeField] private Transform holdPoint;
     [Header("Debug")]
-    [SerializeField] private string nearbyStationName = ""; // Inspector'da durum takibi için
 
     [Header("Zırh Seçimi")]
     [SerializeField] private ArmorSelectUI armorSelectUI;

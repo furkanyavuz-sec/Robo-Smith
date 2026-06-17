@@ -19,7 +19,6 @@ public class GameManager : MonoBehaviour
 
     [Header("Süre Ayarları (Saniye)")]
     [SerializeField] private float preparationDuration = 600f;  // 10 dakika
-    [SerializeField] private float arenaDuration       = 120f;  // 2 dakika
 
     [Header("Overtime Ayarları")]
     [SerializeField] private float overtimeDamageIncrement  = 0.25f;  // Her aralıkta +%25

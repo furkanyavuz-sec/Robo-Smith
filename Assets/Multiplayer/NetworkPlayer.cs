@@ -1,61 +1,44 @@
-// NetworkPlayer.cs
-// Görev: Oyuncunun NetworkBehaviour versiyonu.
-// MonoBehaviour'dan NGO'ya geçiş köprüsü.
-// Her client sadece kendi objesini kontrol eder (IsOwner).
-
 using Unity.Netcode;
 using UnityEngine;
 
 public class NetworkPlayer : NetworkBehaviour
 {
-    [Header("Referanslar")]
-    [SerializeField] private PlayerController    controller;
-    [SerializeField] private PlayerInteraction   interaction;
-    [SerializeField] private CameraController    cameraController;
-
-    // NetworkVariable: tüm clientlar görür, sadece server yazar
-    public NetworkVariable<int> TeamID = new(
-        0,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
-
-    public NetworkVariable<int> PlayerScore = new(
-        0,
-        NetworkVariableReadPermission.Everyone,
-        NetworkVariableWritePermission.Server
-    );
+    [Header("Kapatılacak Lokal Bileşenler")]
+    [SerializeField] private MonoBehaviour[] localScriptsToDisable;
+    [SerializeField] private Behaviour[] otherComponentsToDisable; // NavMeshAgent, AudioListener vb.
 
     public override void OnNetworkSpawn()
 {
-    if (!IsOwner)
+    // Eğer bu obje BİZE aitse (Local Player ise)
+    if (IsOwner)
     {
-        // Başkasının oyuncusu — bileşenleri kapat
-        if (controller  != null) controller.enabled  = false;
-        if (interaction != null) interaction.enabled = false;
-        if (cameraController != null) cameraController.enabled = false;
-        return;
+        Debug.Log($"[NetworkPlayer] Kendi robotumuz ağda doğdu: {name}");
+        
+        // 🌟 KAMERAYI OTOMATİK OLARAK KENDİMİZE KİLİTLİYORUZ!
+        if (CameraController.Instance != null)
+        {
+            CameraController.Instance.SetTarget(transform);
+        }
     }
+    else
+    {
+        // Eğer bu obje BAŞKASINA aitse controls ve local scriptleri kapat
+        Debug.Log($"[NetworkPlayer] Diğer oyuncunun robotu ağda belirdi: {name}. Kontrolleri kapatılıyor.");
 
-    // Kamerayı bu oyuncuya bağla
-    if (cameraController != null) cameraController.enabled = true;
+        foreach (var script in localScriptsToDisable)
+        {
+            if (script != null) script.enabled = false;
+        }
 
-    Debug.Log($"[NetworkPlayer] Oyuncu spawn oldu. " +
-              $"ClientID: {OwnerClientId} | IsOwner: {IsOwner}");
+        foreach (var comp in otherComponentsToDisable)
+        {
+            if (comp != null) comp.enabled = false;
+        }
+
+        // Uzak kopyanın pozisyonunu ClientNetworkTransform yönetir —
+        // lokal fizik simülasyonu onunla çakışmasın
+        if (TryGetComponent<Rigidbody>(out Rigidbody rb))
+            rb.isKinematic = true;
+    }
 }
-
-    // ── Takım Atama (Server tarafından çağrılır) ─────────────────────────
-
-    [ServerRpc(RequireOwnership = false)]
-    public void RequestTeamAssignmentServerRpc(ServerRpcParams rpcParams = default)
-    {
-        ulong clientId = rpcParams.Receive.SenderClientId;
-        int   count    = NetworkManager.ConnectedClients.Count;
-
-        // İlk 3 oyuncu Takım 0, sonraki 3 oyuncu Takım 1
-        int teamId = count <= 3 ? 0 : 1;
-        TeamID.Value = teamId;
-
-        Debug.Log($"[NetworkPlayer] Client {clientId} → Takım {teamId}");
-    }
 }

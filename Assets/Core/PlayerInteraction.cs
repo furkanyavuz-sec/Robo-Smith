@@ -5,10 +5,11 @@
 //   + ForceDropFromStation() → istasyon item'ı alır/yok eder
 //   + TryInteractStation() → önde istasyon var mı, varsa Interact() çağır
 
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
-public class PlayerInteraction : MonoBehaviour
+public class PlayerInteraction : NetworkBehaviour
 {
     [Header("Etkileşim Ayarları")]
     [SerializeField] private float pickupRadius    = 2f;
@@ -27,8 +28,23 @@ public class PlayerInteraction : MonoBehaviour
     private GameObject heldObject;
     private Rigidbody  heldRb;
 
+    /// <summary>
+    /// Offline modda her zaman true; multiplayer'da sadece objenin sahibi.
+    /// Diğer oyuncuların avatarları bizim klavyemizi okuyamaz.
+    /// </summary>
+    private bool HasControl
+    {
+        get
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+                return true;
+            return IsSpawned && IsOwner;
+        }
+    }
+
     private void Update()
 {
+    if (!HasControl) return;
     if (Keyboard.current == null) return;
 
     // E tuşu → normal etkileşim

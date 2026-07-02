@@ -71,6 +71,11 @@ public class BattleRobot : MonoBehaviour
         maxHP      = Mathf.Max(sheet.HP, 1);
         currentHP  = maxHP;
 
+        // SPD statı hareket hızına yansır: her 100 SPD = +%20 hız
+        float spdMultiplier = 1f + sheet.SPD / 500f;
+        chaseSpeed *= spdMultiplier;
+        fleeSpeed  *= spdMultiplier;
+
         agent             = GetComponent<NavMeshAgent>();
         agent.speed       = chaseSpeed;
         empEffect         = GetComponent<EMPEffect>();
@@ -283,7 +288,7 @@ public class BattleRobot : MonoBehaviour
         {
             BattleRobot hit = col.GetComponentInParent<BattleRobot>();
             if (hit == null || hit == this || hit.TeamID == TeamID) continue;
-            hit.TakeDamage(GetFinalDamage(weapon), WeaponCategory.Melee);
+            hit.TakeDamage(GetFinalDamage(weapon), WeaponCategory.Melee, this);
         }
     }
 
@@ -369,8 +374,15 @@ public class BattleRobot : MonoBehaviour
             return; // Hasar engellendi
 
         // Zırh direnci uygula
-        float resistance  = ArmorResistanceTable.GetResistance(equippedArmor, attackerCategory);
-        int   finalDamage = Mathf.Max(1, Mathf.RoundToInt(rawDamage * resistance));
+        float resistance = ArmorResistanceTable.GetResistance(equippedArmor, attackerCategory);
+
+        // DEF statı hasarı azaltır (azalan verim): DEF 75 → ~%20, DEF 300 → %50
+        float defFactor = statSheet != null
+                        ? 1f - statSheet.DEF / (statSheet.DEF + 300f)
+                        : 1f;
+
+        int finalDamage = Mathf.Max(1,
+            Mathf.RoundToInt(rawDamage * resistance * defFactor));
 
         currentHP = Mathf.Max(0, currentHP - finalDamage);
         healthBar?.UpdateBar(currentHP, maxHP);
@@ -487,7 +499,12 @@ public class BattleRobot : MonoBehaviour
         float overtimeMult = MatchData.Instance != null
                            ? MatchData.Instance.OvertimeDamageMultiplier
                            : 1f;
-        return Mathf.RoundToInt(weapon.damage * overtimeMult);
+
+        // ATK statı hasarı ölçekler: her 100 ATK = +%20 hasar
+        // (Plazma çekirdeği taşımanın arenadaki karşılığı)
+        float atkMult = statSheet != null ? 1f + statSheet.ATK / 500f : 1f;
+
+        return Mathf.RoundToInt(weapon.damage * atkMult * overtimeMult);
     }
 
     public bool IsWeaponReady(WeaponData weapon)

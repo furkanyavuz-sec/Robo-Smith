@@ -135,6 +135,6 @@ public class MatchResultUI : MonoBehaviour
     private void OnMainMenu()
     {
         if (MatchData.Instance != null) MatchData.Instance.Reset();
-        SceneManager.LoadScene("SampleScene");
+        SceneManager.LoadScene("MainMenu");
     }
 }

@@ -27,6 +27,13 @@ public class Processor : BaseStation
             inputType           = ItemType.RawPlasma,
             processingDuration  = 4f
             // outputPrefab Inspector'dan bağlanacak
+        },
+        new ProcessorRecipe
+        {
+            recipeName          = "Devre → Mikroçip",
+            inputType           = ItemType.Circuit,
+            processingDuration  = 3.5f
+            // outputPrefab Inspector'dan bağlanacak
         }
     };
 

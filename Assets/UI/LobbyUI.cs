@@ -25,56 +25,99 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI statusText;
     [SerializeField] private TextMeshProUGUI playerCountText;
 
+    [SerializeField] private Button startMatchButton;
     private void Start()
-    {
-        hostButton?.onClick.AddListener(OnHostClicked);
-        clientButton?.onClick.AddListener(OnClientClicked);
-        disconnectButton?.onClick.AddListener(OnDisconnectClicked);
+{
+    hostButton?.onClick.AddListener(OnHostClicked);
+    clientButton?.onClick.AddListener(OnClientClicked);
+    disconnectButton?.onClick.AddListener(OnDisconnectClicked);
+    
+    // 🌟 OYUNU BAŞLAT BUTONUNUN TIKLAMA TETİĞİNİ BURADA BAĞLIYORUZ
+    startMatchButton?.onClick.AddListener(OnStartMatchButtonClicked);
 
-        disconnectButton?.gameObject.SetActive(false);
+    disconnectButton?.gameObject.SetActive(false);
+    startMatchButton?.gameObject.SetActive(false); // Başta görünmez doğsun
 
-        // Varsayılan değerler
-        if (ipInputField   != null) ipInputField.text   = "127.0.0.1";
-        if (portInputField != null) portInputField.text = "7777";
+    // Varsayılan değerler
+    if (ipInputField   != null) ipInputField.text   = "127.0.0.1";
+    if (portInputField != null) portInputField.text = "7777";
 
-        UpdateStatus("Bağlantı bekleniyor...");
-    }
+    UpdateStatus("Bağlantı bekleniyor...");
+}
 
     private void Update()
+{
+    UpdatePlayerCount();
+
+    // 🌟 OYUNU BAŞLAT BUTONUNU CANLANDIRAN SİBER MOTOR
+    if (NetworkManager.Singleton != null && startMatchButton != null)
     {
-        UpdatePlayerCount();
+        // Eğer bu ekranı gören kişi HOST ise VE odada en az 2 oyuncu varsa butonu göster
+        if (NetworkManager.Singleton.IsHost && NetworkManager.Singleton.ConnectedClientsList.Count >= 2)
+        {
+            if (!startMatchButton.gameObject.activeSelf)
+            {
+                startMatchButton.gameObject.SetActive(true);
+                Debug.Log("[Lobi] Yeterli oyuncu sayısına ulaşıldı, OYUNU BAŞLAT butonu aktif!");
+            }
+        }
+        else
+        {
+            // Eğer Client ise veya odada tek başınaysa buton gizli kalır
+            if (startMatchButton.gameObject.activeSelf)
+            {
+                startMatchButton.gameObject.SetActive(false);
+            }
+        }
     }
+}
 
     // ── Buton Olayları ───────────────────────────────────────────────────
-
+    private void OnStartMatchButtonClicked()
+{
+    if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost)
+    {
+        Debug.Log("[Lobi] Host 'OYUNU BAŞLAT' butonuna bastı! Savaş arenasına geçiliyor...");
+        
+        // Tüm bağlı oyuncuları aynı anda sırtlayıp SampleScene'e fırlatır
+        NetworkManager.Singleton.SceneManager.LoadScene("SampleScene", UnityEngine.SceneManagement.LoadSceneMode.Single);
+    }
+}
     private void OnHostClicked()
-    {
-        string ip   = ipInputField?.text   ?? "127.0.0.1";
-        ushort port = ushort.TryParse(portInputField?.text, out ushort p) ? p : (ushort)7777;
+{
+    string ip   = ipInputField?.text   ?? "127.0.0.1";
+    ushort port = ushort.TryParse(portInputField?.text, out ushort p) ? p : (ushort)7777;
 
-        NetworkManagerSetup.Instance?.StartHost(ip, port);
+    // NetworkManagerSetup yerine direkt transport ayarla
+    var transport = NetworkManager.Singleton.GetComponent
+                    <Unity.Netcode.Transports.UTP.UnityTransport>();
+    transport?.SetConnectionData(ip, port);
 
-        UpdateStatus($"Host olarak bekleniyor...\nIP: {ip}:{port}");
-        SetButtonsConnected(true);
-    }
+    NetworkManager.Singleton.StartHost();
+    UpdateStatus($"Host olarak bekleniyor...\nIP: {ip}:{port}");
+    SetButtonsConnected(true);
+}
 
-    private void OnClientClicked()
-    {
-        string ip   = ipInputField?.text   ?? "127.0.0.1";
-        ushort port = ushort.TryParse(portInputField?.text, out ushort p) ? p : (ushort)7777;
+private void OnClientClicked()
+{
+    string ip   = ipInputField?.text   ?? "127.0.0.1";
+    ushort port = ushort.TryParse(portInputField?.text, out ushort p) ? p : (ushort)7777;
 
-        NetworkManagerSetup.Instance?.StartClient(ip, port);
+    var transport = NetworkManager.Singleton.GetComponent
+                    <Unity.Netcode.Transports.UTP.UnityTransport>();
+    transport?.SetConnectionData(ip, port);
 
-        UpdateStatus($"Bağlanıyor...\n{ip}:{port}");
-        SetButtonsConnected(true);
-    }
+    NetworkManager.Singleton.StartClient();
+    UpdateStatus($"Baglanıyor...\n{ip}:{port}");
+    SetButtonsConnected(true);
+}
 
-    private void OnDisconnectClicked()
-    {
-        NetworkManagerSetup.Instance?.Disconnect();
-        UpdateStatus("Bağlantı kesildi.");
-        SetButtonsConnected(false);
-    }
+private void OnDisconnectClicked()
+{
+    NetworkManager.Singleton.Shutdown();
+    UpdateStatus("Baglanti kesildi.");
+    SetButtonsConnected(false);
+}
 
     // ── UI Yardımcıları ──────────────────────────────────────────────────
 

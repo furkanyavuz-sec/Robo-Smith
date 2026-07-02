@@ -1,7 +1,4 @@
 // LobbyUIGenerator.cs
-// Görev: MainMenu sahnesinde Lobby UI'ı otomatik oluşturur.
-// Inspector'dan "Generate Lobby UI" ile çalıştır.
-
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -13,6 +10,7 @@ public class LobbyUIGenerator : MonoBehaviour
     [SerializeField] private Color hostColor       = new Color(0.2f,  0.7f,  0.3f,  1f);
     [SerializeField] private Color clientColor     = new Color(0.2f,  0.4f,  0.9f,  1f);
     [SerializeField] private Color disconnectColor = new Color(0.8f,  0.2f,  0.2f,  1f);
+    [SerializeField] private Color startMatchColor = new Color(0.9f,  0.6f,  0.1f,  1f); // Başlat butonu için turuncu/altın renk
     [SerializeField] private Color inputBGColor    = new Color(0.15f, 0.15f, 0.2f,  1f);
     [SerializeField] private Color textColor       = Color.white;
 
@@ -80,19 +78,25 @@ public class LobbyUIGenerator : MonoBehaviour
             new Vector2(110, -175), new Vector2(180, 50),
             "BAGLAN", clientColor);
 
-        // Disconnect Butonu (başta kapalı)
-        Button disconnectBtn = CreateButton("DisconnectButton", bg.transform,
+        // Oyunu Başlat Butonu (Sadece Host'a özel, başta kapalı doğacak)
+        Button startMatchBtn = CreateButton("StartMatchButton", bg.transform,
             new Vector2(0, -240), new Vector2(200, 45),
+            "OYUNU BAŞLAT", startMatchColor);
+        startMatchBtn.gameObject.SetActive(false);
+
+        // Disconnect Butonu (başta kapalı, koordinatını bir tık aşağı kaydırdım çakışmasınlar diye)
+        Button disconnectBtn = CreateButton("DisconnectButton", bg.transform,
+            new Vector2(0, -300), new Vector2(200, 45),
             "AYRIL", disconnectColor);
         disconnectBtn.gameObject.SetActive(false);
 
         // LobbyUI scriptini canvas'a ekle ve referansları bağla
         LobbyUI lobbyUI = canvas.gameObject.AddComponent<LobbyUI>();
         SetLobbyUIReferences(lobbyUI, bg, ipInput, portInput,
-                             hostBtn, clientBtn, disconnectBtn,
+                             hostBtn, clientBtn, disconnectBtn, startMatchBtn,
                              statusText, playerCountText);
 
-        Debug.Log("[LobbyUIGenerator] Lobby UI olusturuldu!");
+        Debug.Log("[LobbyUIGenerator] Lobby UI (Oyunu Başlat Dahil) Başarıyla Oluşturuldu!");
     }
 
     // ── Yardımcı Oluşturucular ───────────────────────────────────────────
@@ -113,7 +117,6 @@ public class LobbyUIGenerator : MonoBehaviour
 
         canvasObj.AddComponent<GraphicRaycaster>();
 
-        // EventSystem
         if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
         {
             GameObject es = new GameObject("EventSystem");
@@ -124,16 +127,12 @@ public class LobbyUIGenerator : MonoBehaviour
         return canvas;
     }
 
-    private GameObject CreatePanel(string name, Transform parent,
-                                    Vector2 anchoredPos, Vector2 sizeDelta,
-                                    Color color)
+    private GameObject CreatePanel(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, Color color)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
-
         RectTransform rect = obj.AddComponent<RectTransform>();
 
-        // Tam ekran panel için stretch anchor
         if (sizeDelta == Vector2.zero)
         {
             rect.anchorMin = Vector2.zero;
@@ -149,18 +148,13 @@ public class LobbyUIGenerator : MonoBehaviour
 
         Image img  = obj.AddComponent<Image>();
         img.color  = color;
-
         return obj;
     }
 
-    private TextMeshProUGUI CreateText(string name, Transform parent,
-                                        Vector2 anchoredPos, Vector2 sizeDelta,
-                                        string text, int fontSize,
-                                        FontStyles style, Color color)
+    private TextMeshProUGUI CreateText(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, string text, int fontSize, FontStyles style, Color color)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
-
         RectTransform rect   = obj.AddComponent<RectTransform>();
         rect.anchoredPosition = anchoredPos;
         rect.sizeDelta        = sizeDelta;
@@ -171,18 +165,13 @@ public class LobbyUIGenerator : MonoBehaviour
         tmp.fontStyle       = style;
         tmp.color           = color;
         tmp.alignment       = TextAlignmentOptions.Center;
-
         return tmp;
     }
 
-    private TMP_InputField CreateInputField(string name, Transform parent,
-                                             Vector2 anchoredPos, Vector2 sizeDelta,
-                                             string placeholder)
+    private TMP_InputField CreateInputField(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, string placeholder)
     {
-        // Arka plan
         GameObject bg = new GameObject(name);
         bg.transform.SetParent(parent, false);
-
         RectTransform bgRect   = bg.AddComponent<RectTransform>();
         bgRect.anchoredPosition = anchoredPos;
         bgRect.sizeDelta        = sizeDelta;
@@ -190,10 +179,8 @@ public class LobbyUIGenerator : MonoBehaviour
         Image bgImg  = bg.AddComponent<Image>();
         bgImg.color  = inputBGColor;
 
-        // InputField
         TMP_InputField input = bg.AddComponent<TMP_InputField>();
 
-        // Text alanı
         GameObject textObj = new GameObject("Text");
         textObj.transform.SetParent(bg.transform, false);
         RectTransform textRect = textObj.AddComponent<RectTransform>();
@@ -207,7 +194,6 @@ public class LobbyUIGenerator : MonoBehaviour
         textTMP.color           = textColor;
         textTMP.alignment       = TextAlignmentOptions.MidlineLeft;
 
-        // Placeholder
         GameObject phObj = new GameObject("Placeholder");
         phObj.transform.SetParent(bg.transform, false);
         RectTransform phRect = phObj.AddComponent<RectTransform>();
@@ -226,17 +212,13 @@ public class LobbyUIGenerator : MonoBehaviour
         input.textComponent   = textTMP;
         input.placeholder     = phTMP;
         input.text            = placeholder;
-
         return input;
     }
 
-    private Button CreateButton(string name, Transform parent,
-                                 Vector2 anchoredPos, Vector2 sizeDelta,
-                                 string label, Color color)
+    private Button CreateButton(string name, Transform parent, Vector2 anchoredPos, Vector2 sizeDelta, string label, Color color)
     {
         GameObject obj = new GameObject(name);
         obj.transform.SetParent(parent, false);
-
         RectTransform rect   = obj.AddComponent<RectTransform>();
         rect.anchoredPosition = anchoredPos;
         rect.sizeDelta        = sizeDelta;
@@ -245,19 +227,13 @@ public class LobbyUIGenerator : MonoBehaviour
         img.color  = color;
 
         Button btn = obj.AddComponent<Button>();
-
-        // Hover efekti
         ColorBlock colors      = btn.colors;
-        colors.highlightedColor = new Color(
-            color.r + 0.1f, color.g + 0.1f, color.b + 0.1f);
-        colors.pressedColor    = new Color(
-            color.r - 0.1f, color.g - 0.1f, color.b - 0.1f);
+        colors.highlightedColor = new Color(color.r + 0.1f, color.g + 0.1f, color.b + 0.1f);
+        colors.pressedColor    = new Color(color.r - 0.1f, color.g - 0.1f, color.b - 0.1f);
         btn.colors             = colors;
 
-        // Buton metni
         GameObject textObj = new GameObject("Text");
         textObj.transform.SetParent(obj.transform, false);
-
         RectTransform textRect = textObj.AddComponent<RectTransform>();
         textRect.anchorMin     = Vector2.zero;
         textRect.anchorMax     = Vector2.one;
@@ -270,21 +246,13 @@ public class LobbyUIGenerator : MonoBehaviour
         tmp.fontStyle       = FontStyles.Bold;
         tmp.color           = Color.white;
         tmp.alignment       = TextAlignmentOptions.Center;
-
         return btn;
     }
 
-    private void SetLobbyUIReferences(LobbyUI lobbyUI,
-                                       GameObject panel,
-                                       TMP_InputField ipInput,
-                                       TMP_InputField portInput,
-                                       Button hostBtn,
-                                       Button clientBtn,
-                                       Button disconnectBtn,
-                                       TextMeshProUGUI statusText,
-                                       TextMeshProUGUI playerCountText)
+    private void SetLobbyUIReferences(LobbyUI lobbyUI, GameObject panel, TMP_InputField ipInput, TMP_InputField portInput,
+                                      Button hostBtn, Button clientBtn, Button disconnectBtn, Button startMatchBtn,
+                                      TextMeshProUGUI statusText, TextMeshProUGUI playerCountText)
     {
-        // Reflection ile private field'ları set et
         var type = typeof(LobbyUI);
 
         SetPrivateField(type, lobbyUI, "lobbyPanel",       panel);
@@ -293,16 +261,14 @@ public class LobbyUIGenerator : MonoBehaviour
         SetPrivateField(type, lobbyUI, "hostButton",       hostBtn);
         SetPrivateField(type, lobbyUI, "clientButton",     clientBtn);
         SetPrivateField(type, lobbyUI, "disconnectButton", disconnectBtn);
+        SetPrivateField(type, lobbyUI, "startMatchButton",  startMatchBtn); // Sinsi Reflection bağlantısı!
         SetPrivateField(type, lobbyUI, "statusText",       statusText);
         SetPrivateField(type, lobbyUI, "playerCountText",  playerCountText);
     }
 
-    private void SetPrivateField(System.Type type, object obj,
-                                  string fieldName, object value)
+    private void SetPrivateField(System.Type type, object obj, string fieldName, object value)
     {
-        var field = type.GetField(fieldName,
-            System.Reflection.BindingFlags.NonPublic |
-            System.Reflection.BindingFlags.Instance);
+        var field = type.GetField(fieldName, System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         field?.SetValue(obj, value);
     }
 

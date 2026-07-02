@@ -19,6 +19,10 @@ public class GameManager : MonoBehaviour
 
     [Header("Süre Ayarları (Saniye)")]
     [SerializeField] private float preparationDuration = 600f;  // 10 dakika
+    [SerializeField] private float arenaDuration       = 120f;  // 2 dakika
+
+    [Header("Sahne İsimleri (Devam)")]
+    [SerializeField] private string garageSceneName = "SampleScene";
 
     [Header("Overtime Ayarları")]
     [SerializeField] private float overtimeDamageIncrement  = 0.25f;  // Her aralıkta +%25
@@ -51,6 +55,27 @@ public class GameManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // Arena sahnesine geçince de yaşamalı — timer'ı o sürdürecek
+        DontDestroyOnLoad(gameObject);
+    }
+
+    private void OnEnable()  => SceneManager.sceneLoaded += OnSceneLoaded;
+    private void OnDisable() => SceneManager.sceneLoaded -= OnSceneLoaded;
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        if (scene.name == arenaSceneName)
+        {
+            BeginArenaPhase();
+        }
+        else if (scene.name == garageSceneName && currentPhase == GamePhase.GameOver)
+        {
+            // Rematch: garaja dönüldü, hazırlığı baştan başlat
+            playerChassis = FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
+            MatchData.Instance?.Reset();
+            StartPreparation();
+        }
     }
 
     private void Start()
@@ -119,6 +144,19 @@ public class GameManager : MonoBehaviour
         SceneManager.LoadScene(arenaSceneName);
     }
 
+    /// <summary>
+    /// Arena sahnesi yüklenince çağrılır: 2 dakikalık geri sayımı başlatır.
+    /// Süre biterse Update() içinde Overtime'a geçilir.
+    /// </summary>
+    private void BeginArenaPhase()
+    {
+        currentPhase = GamePhase.Arena;
+        phaseTimer   = arenaDuration;
+        matchStarted = true;
+
+        Debug.Log($"[GameManager] ⚔️ Arena fazı başladı! Süre: {arenaDuration}s");
+    }
+
     private void StartOvertime()
     {
         currentPhase  = GamePhase.Overtime;
@@ -171,6 +209,10 @@ public class GameManager : MonoBehaviour
             Debug.LogWarning($"[GameManager] '{chassis.name}' boş şasi, atlandı.");
             continue;
         }
+
+        if (chassis.StatSheet.weaponCount == 0)
+            Debug.LogWarning($"[GameManager] ⚠️ '{chassis.name}' silahsız arenaya " +
+                             $"gidiyor — saldıramayacak! Silah takmayı unutma.");
 
         MatchData.Instance.AddPlayerRobot(
             chassis.StatSheet,

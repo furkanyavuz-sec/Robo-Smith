@@ -1,13 +1,14 @@
 // PlayerController.cs  — Unity New Input System uyumlu
 // Okuma yöntemi: UnityEngine.InputSystem.Keyboard / Gamepad polling
-// NGO notu: IsOwner kontrolü yorum satırı olarak hazır, NGO'ya geçince
-//           MonoBehaviour → NetworkBehaviour yapılıp açılacak.
+// NGO: NetworkBehaviour — multiplayer'da sadece owner input okur/hareket eder.
+//      Offline modda (NGO dinlemiyorken) normal çalışır, tekli oyun bozulmaz.
 
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;   // ← Yeni paket namespace'i
 
 [RequireComponent(typeof(Rigidbody))]
-public class PlayerController : MonoBehaviour
+public class PlayerController : NetworkBehaviour
 {
     [Header("Hareket Ayarları")]
     [SerializeField] private float moveSpeed = 5f;
@@ -27,17 +28,29 @@ public class PlayerController : MonoBehaviour
         mainCamera = Camera.main;
     }
 
+    /// <summary>
+    /// Offline modda her zaman true; multiplayer'da sadece objenin sahibi.
+    /// NetworkManager yokken NGO API'lerine dokunmaz — tekli oyun güvenli.
+    /// </summary>
+    private bool HasControl
+    {
+        get
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+                return true;
+            return IsSpawned && IsOwner;
+        }
+    }
+
     private void Update()
     {
-        // NGO'ya geçince buraya eklenecek:
-        // if (!IsOwner) return;
+        if (!HasControl) return;
         ReadInput();
     }
 
     private void FixedUpdate()
     {
-        // NGO'ya geçince buraya eklenecek:
-        // if (!IsOwner) return;
+        if (!HasControl) return;
         Move();
         Rotate();
     }

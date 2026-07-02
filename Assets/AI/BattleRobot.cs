@@ -371,7 +371,11 @@ public class BattleRobot : MonoBehaviour
         // Kalkan kontrolü
         if (shieldController != null &&
             shieldController.TryBlock(rawDamage, attacker))
+        {
+            DamagePopup.Spawn(transform.position, "BLOK",
+                new Color(0.3f, 0.9f, 1f), 1.2f);
             return; // Hasar engellendi
+        }
 
         // Zırh direnci uygula
         float resistance = ArmorResistanceTable.GetResistance(equippedArmor, attackerCategory);
@@ -386,6 +390,13 @@ public class BattleRobot : MonoBehaviour
 
         currentHP = Mathf.Max(0, currentHP - finalDamage);
         healthBar?.UpdateBar(currentHP, maxHP);
+
+        // Yüzen hasar yazısı — renk zırh eşleşmesini anlatır
+        Color popupColor = resistance < 1f ? new Color(0.4f, 1f, 0.4f)
+                         : resistance > 1f ? new Color(1f, 0.35f, 0.35f)
+                         : Color.white;
+        DamagePopup.Spawn(transform.position, finalDamage.ToString(),
+            popupColor, resistance > 1f ? 1.25f : 1f);
 
         if (resistance < 1f)
             Debug.Log($"<color=green>[Zırh] Direnç! {rawDamage} → {finalDamage}</color>");
@@ -406,7 +417,11 @@ public class BattleRobot : MonoBehaviour
     public void ApplyEMP(float duration)
     {
         if (empEffect != null)
+        {
             empEffect.ApplyFreeze(duration);
+            DamagePopup.Spawn(transform.position, "EMP!",
+                new Color(0.75f, 0.4f, 1f), 1.3f);
+        }
     }
 
     private void Heal(int amount)

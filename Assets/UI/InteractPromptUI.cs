@@ -35,9 +35,22 @@ public class InteractPromptUI : MonoBehaviour
         }
     }
 
+    private float playerSearchTimer;
+
     private void Update()
 {
-    if (player == null) return;
+    // Oyuncu runtime'da spawn olur (OfflinePlayerSpawner / NGO) —
+    // referans boşsa yarım saniyede bir aramayı dene
+    if (player == null)
+    {
+        playerSearchTimer -= Time.deltaTime;
+        if (playerSearchTimer <= 0f)
+        {
+            playerSearchTimer = 0.5f;
+            player = FindFirstObjectByType<PlayerInteraction>();
+        }
+        if (player == null) return;
+    }
 
     Collider[] hits = Physics.OverlapSphere(
         player.transform.position,
@@ -62,11 +75,21 @@ public class InteractPromptUI : MonoBehaviour
         if (ePromptText     != null) ePromptText.text     = "";
         if (qPromptText     != null) qPromptText.text     = "";
         if (panelBackground != null) panelBackground.color = Color.clear;
-        return;
+        targetAlpha = 0f;
+    }
+    else
+    {
+        RefreshPrompt(closest);
+        targetAlpha = 1f;
     }
 
-    RefreshPrompt(closest);
+    // Paneli yumuşakça göster/gizle — Start'taki alpha=0 burada geri açılır
+    if (panelCanvasGroup != null)
+        panelCanvasGroup.alpha = Mathf.MoveTowards(
+            panelCanvasGroup.alpha, targetAlpha, Time.deltaTime * 8f);
 }
+
+    private float targetAlpha = 0f;
 
     private void RefreshPrompt(BaseStation station)
     {
@@ -104,7 +127,9 @@ public class InteractPromptUI : MonoBehaviour
                 {
                     ePrompt = item.Type.IsWeapon()    ? "E: Silah Tak"  :
                               item.Type.IsProcessed() ? "E: Zırha Ekle" : "";
-                    qPrompt = c.CanInteractUpgrade(player) ? "Q: Silahı Geliştir" : "";
+                    qPrompt = c.CanInteractUpgrade(player)
+                            ? ChassisInteractUI.UpgradePromptText(c, player)
+                            : "";
                 }
                 break;
 

@@ -54,8 +54,32 @@ public class ChassisInteractUI : MonoBehaviour
         {
             qLabel.gameObject.SetActive(canUpgrade);
 
-            // Hangi silah upgrade olacak?
-            qLabel.text = "Q: Silahı Geliştir";
+            if (canUpgrade)
+                qLabel.text = UpgradePromptText(chassis, player);
         }
+    }
+
+    /// <summary>
+    /// Eldeki malzemeyle hangi silahın geliştirileceğini bulup
+    /// "Q: Kilic → Lv2" formatında ipucu üretir.
+    /// </summary>
+    public static string UpgradePromptText(RobotChassis chassis, PlayerInteraction player)
+    {
+        if (player.HeldObject == null ||
+            !player.HeldObject.TryGetComponent<PickupItem>(out PickupItem item))
+            return "Q: Silahı Geliştir";
+
+        RobotStatSheet sheet = chassis.StatSheet;
+        for (int i = 0; i < sheet.weaponCount; i++)
+        {
+            WeaponData w = sheet.equippedWeapons[i];
+            if (w == null || w.IsMaxLevel) continue;
+
+            UpgradeLevel next = WeaponUpgradeSystem.GetNextLevel(w);
+            if (next != null && next.requiredMaterial == item.Type)
+                return $"Q: {w.weaponName} → Lv{w.upgradeLevel + 1}";
+        }
+
+        return "Q: Silahı Geliştir";
     }
 }

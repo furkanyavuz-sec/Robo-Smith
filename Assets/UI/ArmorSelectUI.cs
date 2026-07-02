@@ -39,9 +39,23 @@ public class ArmorSelectUI : MonoBehaviour
         panelRoot?.SetActive(false);
     }
 
+    private float playerSearchTimer;
+
     private void Update()
 {
-    if (player == null) return;
+    // Oyuncu runtime'da spawn olur (OfflinePlayerSpawner / NGO) —
+    // referans boşsa yarım saniyede bir aramayı dene
+    if (player == null)
+    {
+        playerSearchTimer -= Time.deltaTime;
+        if (playerSearchTimer <= 0f)
+        {
+            playerSearchTimer = 0.5f;
+            player = FindFirstObjectByType<PlayerInteraction>();
+        }
+        if (player == null) return;
+    }
+
     if (chassisList == null || chassisList.Length == 0) return;
 
     RobotChassis closest     = null;

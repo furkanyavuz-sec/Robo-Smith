@@ -59,10 +59,10 @@ public class RobotStatusUI : MonoBehaviour
     }
 
     if (strongest == null) return;
-    RefreshUI(strongest.StatSheet);
+    RefreshUI(strongest.StatSheet, strongest.EquippedArmor);
 }
 
-    private void RefreshUI(RobotStatSheet sheet)
+    private void RefreshUI(RobotStatSheet sheet, ArmorType armor)
 {
     if (sheet == null) return;
 
@@ -78,14 +78,38 @@ public class RobotStatusUI : MonoBehaviour
         if (i < sheet.weaponCount && sheet.equippedWeapons[i] != null)
         {
             WeaponData w = sheet.equippedWeapons[i];
-            weaponSlotTexts[i].text  = $"{w.weaponName} [{w.UpgradeStatus}]";
-            weaponSlotTexts[i].color = Color.white;
+
+            // Sonraki seviye için gereken malzemeyi göster —
+            // bu bilgi daha önce sadece konsol logundaydı
+            UpgradeLevel next = WeaponUpgradeSystem.GetNextLevel(w);
+            string hint = next != null
+                ? $"  →  {next.requiredAmount}x {MaterialShortName(next.requiredMaterial)}"
+                : "";
+
+            weaponSlotTexts[i].text  = $"{w.weaponName} [{w.UpgradeStatus}]{hint}";
+            weaponSlotTexts[i].color = w.IsMaxLevel
+                ? new Color(1f, 0.85f, 0.3f)   // MAX: altın
+                : Color.white;
+        }
+        else if (i == 0 && sheet.weaponCount == 0)
+        {
+            // Hiç silah yok — arenada savaşamaz, oyuncuyu uyar
+            weaponSlotTexts[i].text  = "⚠ Silah tak! (Silah Atölyesi)";
+            weaponSlotTexts[i].color = new Color(1f, 0.4f, 0.3f);
         }
         else
         {
             weaponSlotTexts[i].text  = $"Bos Yuva {i + 1}";
             weaponSlotTexts[i].color = new Color(0.5f, 0.5f, 0.5f);
         }
+    }
+
+    if (armorText != null)
+    {
+        armorText.text  = armor == ArmorType.None
+            ? "Zırh: Yok"
+            : $"Zırh: {ArmorShortName(armor)}  ({ArmorResistanceTable.GetDescription(armor)})";
+        armorText.color = armor == ArmorType.None ? Color.grey : Color.white;
     }
 
     if (synergyText != null)
@@ -98,4 +122,23 @@ public class RobotStatusUI : MonoBehaviour
             : Color.yellow;
     }
 }
+
+    // ── İsim Yardımcıları ────────────────────────────────────────────────
+
+    private static string MaterialShortName(ItemType type) => type switch
+    {
+        ItemType.SteelPlate => "Plaka",
+        ItemType.PlasmaCore => "Plazma",
+        ItemType.Microchip  => "Çip",
+        _                   => type.ToString()
+    };
+
+    private static string ArmorShortName(ArmorType armor) => armor switch
+    {
+        ArmorType.HeavyPlate    => "Ağır Plaka",
+        ArmorType.ReactiveArmor => "Reaktif Zırh",
+        ArmorType.EnergyShield  => "Enerji Kalkanı",
+        ArmorType.EMPResistance => "EMP Direnci",
+        _                       => "Yok"
+    };
 }

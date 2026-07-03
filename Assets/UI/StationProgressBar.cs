@@ -81,6 +81,8 @@ public class StationProgressBar : MonoBehaviour
         labelObj.AddComponent<StationDecorTag>();
 
         bar.timeLabel           = labelObj.AddComponent<TextMeshPro>();
+        TMP_FontAsset sciFi     = DisplayFontApplier.GetFont();
+        if (sciFi != null) bar.timeLabel.font = sciFi;
         bar.timeLabel.fontSize  = 2f;
         bar.timeLabel.fontStyle = FontStyles.Bold;
         bar.timeLabel.alignment = TextAlignmentOptions.Center;

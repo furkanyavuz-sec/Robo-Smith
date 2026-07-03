@@ -23,6 +23,9 @@ public class ArenaHUDGenerator : MonoBehaviour
 
         Canvas canvas = UIFactory.CreateCanvas("ArenaHUD_Canvas", transform, 5);
 
+        // Sci-fi font, DisplayFontTag işaretli metinlere runtime'da uygulanır
+        canvas.gameObject.AddComponent<DisplayFontApplier>();
+
         ArenaTimer      timer      = BuildTimerPanel(canvas.transform);
         TeamStatusPanel playerTeam = BuildTeamPanel(canvas.transform, 0,
             "TAKIMIN", UIFactory.TeamBlue, UIFactory.HeaderBlue, false);
@@ -53,10 +56,13 @@ public class ArenaHUDGenerator : MonoBehaviour
         TextMeshProUGUI phase = UIFactory.CreateText("PhaseText", panel.transform,
             new Vector2(0.5f, 1f), new Vector2(0, -8), new Vector2(280, 30),
             "⚔️ ARENA", 20, FontStyles.Bold, new Color(1f, 0.6f, 0.3f));
+        phase.characterSpacing = 6f;
+        phase.gameObject.AddComponent<DisplayFontTag>();
 
         TextMeshProUGUI timerText = UIFactory.CreateText("TimerText", panel.transform,
             new Vector2(0.5f, 0f), new Vector2(0, 4), new Vector2(280, 68),
-            "02:00", 52, FontStyles.Bold, UIFactory.TextMain);
+            "02:00", 48, FontStyles.Bold, UIFactory.TextMain);
+        timerText.gameObject.AddComponent<DisplayFontTag>();
 
         ArenaTimer ui = panel.AddComponent<ArenaTimer>();
         UIFactory.SetField(ui, "timerText", timerText);
@@ -81,8 +87,10 @@ public class ArenaHUDGenerator : MonoBehaviour
         TextMeshProUGUI nameText = UIFactory.CreateText("TeamNameText",
             header.transform,
             new Vector2(0f, 0.5f), new Vector2(12, 0), new Vector2(220, 30),
-            teamName, 19, FontStyles.Bold, UIFactory.TextMain,
+            teamName, 17, FontStyles.Bold, UIFactory.TextMain,
             TextAlignmentOptions.MidlineLeft);
+        nameText.characterSpacing = 3f;
+        nameText.gameObject.AddComponent<DisplayFontTag>();
 
         TextMeshProUGUI countText = UIFactory.CreateText("RobotCountText",
             header.transform,
@@ -167,7 +175,9 @@ public class ArenaHUDGenerator : MonoBehaviour
         TextMeshProUGUI overtimeText = UIFactory.CreateText("OvertimeText",
             bandPanel.transform,
             new Vector2(0.5f, 1f), new Vector2(0, -4), new Vector2(420, 52),
-            "🔥 OVERTIME!", 38, FontStyles.Bold, new Color(1f, 0.25f, 0.2f));
+            "🔥 OVERTIME!", 34, FontStyles.Bold, new Color(1f, 0.25f, 0.2f));
+        overtimeText.characterSpacing = 5f;
+        overtimeText.gameObject.AddComponent<DisplayFontTag>();
 
         TextMeshProUGUI damageMult = UIFactory.CreateText("DamageMultText",
             bandPanel.transform,
@@ -193,8 +203,10 @@ public class ArenaHUDGenerator : MonoBehaviour
             canvas.transform, new Color(0f, 0f, 0f, 0.85f), blockClicks: true);
 
         TextMeshProUGUI title = UIFactory.CreateText("ResultTitle", panel.transform,
-            new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(900, 110),
-            "KAZANDIN!", 68, FontStyles.Bold, UIFactory.TextMain);
+            new Vector2(0.5f, 0.5f), new Vector2(0, 150), new Vector2(1100, 110),
+            "KAZANDIN!", 62, FontStyles.Bold, UIFactory.TextMain);
+        title.characterSpacing = 8f;
+        title.gameObject.AddComponent<DisplayFontTag>();
 
         TextMeshProUGUI sub = UIFactory.CreateText("ResultSub", panel.transform,
             new Vector2(0.5f, 0.5f), new Vector2(0, 60), new Vector2(800, 40),

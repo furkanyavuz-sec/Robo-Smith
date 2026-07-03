@@ -21,6 +21,9 @@ public class PrepHUDGenerator : MonoBehaviour
 
         Canvas canvas = UIFactory.CreateCanvas("PrepHUD_Canvas", transform, 5);
 
+        // Sci-fi font, DisplayFontTag işaretli metinlere runtime'da uygulanır
+        canvas.gameObject.AddComponent<DisplayFontApplier>();
+
         GameObject timerPanel    = BuildTimerPanel(canvas.transform);
         GameObject statusPanel   = BuildRobotStatusPanel(canvas.transform);
         GameObject promptPanel   = BuildInteractPromptPanel(canvas.transform);
@@ -46,10 +49,13 @@ public class PrepHUDGenerator : MonoBehaviour
         TextMeshProUGUI phase = UIFactory.CreateText("PhaseText", panel.transform,
             new Vector2(0.5f, 1f), new Vector2(0, -8), new Vector2(280, 30),
             "HAZIRLIK", 20, FontStyles.Bold, new Color(0.55f, 0.75f, 1f));
+        phase.characterSpacing = 6f;
+        phase.gameObject.AddComponent<DisplayFontTag>();
 
         TextMeshProUGUI timer = UIFactory.CreateText("TimerText", panel.transform,
             new Vector2(0.5f, 0f), new Vector2(0, 4), new Vector2(280, 68),
-            "10:00", 52, FontStyles.Bold, UIFactory.TextMain);
+            "10:00", 48, FontStyles.Bold, UIFactory.TextMain);
+        timer.gameObject.AddComponent<DisplayFontTag>();
 
         TimerUI ui = panel.AddComponent<TimerUI>();
         UIFactory.SetField(ui, "timerText", timer);
@@ -70,7 +76,9 @@ public class PrepHUDGenerator : MonoBehaviour
             UIFactory.HeaderBlue);
         TextMeshProUGUI headerText = UIFactory.CreateText("HeaderText", header.transform,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380, 38),
-            "ROBOT DURUMU", 17, FontStyles.Bold, UIFactory.TextMain);
+            "ROBOT DURUMU", 16, FontStyles.Bold, UIFactory.TextMain);
+        headerText.characterSpacing = 4f;
+        headerText.gameObject.AddComponent<DisplayFontTag>();
 
         // Stat 2x2 ızgara — her stat kendi renginde
         TextMeshProUGUI hp  = StatText(panel, "HPText",  new Vector2(20,  -52), UIFactory.StatHP,  "HP:  0");
@@ -157,7 +165,9 @@ public class PrepHUDGenerator : MonoBehaviour
         TextMeshProUGUI stationName = UIFactory.CreateText("StationNameText",
             header.transform,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(440, 34),
-            "", 21, FontStyles.Bold, UIFactory.TextMain);
+            "", 20, FontStyles.Bold, UIFactory.TextMain);
+        stationName.characterSpacing = 3f;
+        stationName.gameObject.AddComponent<DisplayFontTag>();
 
         TextMeshProUGUI ePrompt = UIFactory.CreateText("EPromptText", panel.transform,
             new Vector2(0.5f, 0f), new Vector2(0, 44), new Vector2(440, 28),

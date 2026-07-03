@@ -333,6 +333,10 @@ public class BattleRobot : MonoBehaviour
         }
     }
 
+    /// <summary>Namlu çıkış noktası — gövde önü, omuz hizası.</summary>
+    private Vector3 MuzzlePos() =>
+        transform.position + Vector3.up * 1.1f + transform.forward * 0.5f;
+
     private void FireRanged(WeaponData weapon, BattleRobot target)
 {
     if (weapon.projectilePrefab != null)
@@ -347,8 +351,10 @@ public class BattleRobot : MonoBehaviour
         return;
     }
 
-    // Prefab yoksa anlık hasar
-    target.TakeDamage(GetFinalDamage(weapon), WeaponCategory.Ranged, this);
+    // Prefab yoksa koddan üretilen görünür enerji oku
+    Projectile bolt = ProjectileFactory.CreateBolt(
+        MuzzlePos(), StationVisuals.ItemColor(weapon.sourceItem));
+    bolt.Initialize(TeamID, target.transform, GetFinalDamage(weapon));
 }
 
     private void FireRocket(WeaponData weapon, BattleRobot target)
@@ -365,14 +371,10 @@ public class BattleRobot : MonoBehaviour
         return;
     }
 
-    // Prefab yoksa AOE anlık hasar
-    Collider[] hits = Physics.OverlapSphere(target.transform.position, weapon.aoeRadius);
-    foreach (Collider col in hits)
-    {
-        BattleRobot hit = col.GetComponentInParent<BattleRobot>();
-        if (hit == null || hit.TeamID == TeamID) continue;
-        hit.TakeDamage(GetFinalDamage(weapon), WeaponCategory.AOE, this);
-    }
+    // Prefab yoksa koddan üretilen görünür roket (çarpınca AOE patlar)
+    RocketProjectile rocket = ProjectileFactory.CreateRocket(
+        MuzzlePos(), StationVisuals.ItemColor(weapon.sourceItem));
+    rocket.Initialize(TeamID, target.transform, GetFinalDamage(weapon), weapon.aoeRadius);
 }
 
     private void FireEMP(WeaponData weapon, BattleRobot target)
@@ -387,8 +389,15 @@ public class BattleRobot : MonoBehaviour
         if (proj.TryGetComponent<Projectile>(out Projectile p))
             p.Initialize((int)TeamID, target.transform, GetFinalDamage(weapon));
     }
+    else
+    {
+        // Koddan üretilen görünür EMP küresi
+        Projectile orb = ProjectileFactory.CreateEmpOrb(
+            MuzzlePos(), StationVisuals.ItemColor(weapon.sourceItem));
+        orb.Initialize(TeamID, target.transform, GetFinalDamage(weapon));
+    }
 
-    // Prefab olsa da olmasa da EMP etkisini uygula
+    // EMP donma etkisi menzil içindeyse uygulanır
     float dist = DistanceTo(target);
     if (dist <= weapon.effectiveRange)
         target.ApplyEMP(weapon.debuffDuration);

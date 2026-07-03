@@ -11,18 +11,26 @@ public static class DeathExplosion
     private const int   PieceCount    = 10;
     private const float PieceLifetime = 1.2f;
 
-    public static void Spawn(Vector3 position, Color teamColor)
+    public static void Spawn(Vector3 position, Color teamColor) =>
+        SpawnInternal(position, teamColor, PieceCount, 0.12f, 0.28f, 2.4f);
+
+    /// <summary>Roket çarpması gibi küçük patlamalar için hafif versiyon.</summary>
+    public static void SmallBlast(Vector3 position, Color color) =>
+        SpawnInternal(position, color, 5, 0.08f, 0.16f, 1.4f);
+
+    private static void SpawnInternal(Vector3 position, Color teamColor,
+        int pieceCount, float minSize, float maxSize, float flashScale)
     {
         Vector3 center = position + Vector3.up * 0.5f;
 
         // Savrulan parçalar — takım rengi ve koyu metal karışımı
-        for (int i = 0; i < PieceCount; i++)
+        for (int i = 0; i < pieceCount; i++)
         {
             GameObject piece = GameObject.CreatePrimitive(PrimitiveType.Cube);
             piece.name = "Enkaz";
             piece.transform.position = center + Random.insideUnitSphere * 0.35f;
             piece.transform.rotation = Random.rotation;
-            piece.transform.localScale = Vector3.one * Random.Range(0.12f, 0.28f);
+            piece.transform.localScale = Vector3.one * Random.Range(minSize, maxSize);
 
             Color c = i % 3 == 0
                 ? new Color(0.18f, 0.18f, 0.20f)              // Koyu metal
@@ -48,7 +56,7 @@ public static class DeathExplosion
         Object.Destroy(flash.GetComponent<Collider>());
         flash.GetComponent<Renderer>().sharedMaterial =
             StationVisuals.GetMaterial(new Color(1f, 0.95f, 0.8f));
-        flash.AddComponent<ExplosionFlash>();
+        flash.AddComponent<ExplosionFlash>().maxScale = flashScale;
     }
 
     // ── Parça davranışı: bekle → küçül → yok ol ─────────────────────────
@@ -78,6 +86,8 @@ public static class DeathExplosion
     // ── Flaş: hızla büyü ve sön ─────────────────────────────────────────
     private class ExplosionFlash : MonoBehaviour
     {
+        public float maxScale = 2.4f;
+
         private const float Duration = 0.18f;
         private float age;
 
@@ -85,7 +95,7 @@ public static class DeathExplosion
         {
             age += Time.deltaTime;
             float t = age / Duration;
-            transform.localScale = Vector3.one * Mathf.Lerp(0.6f, 2.4f, t);
+            transform.localScale = Vector3.one * Mathf.Lerp(0.4f, maxScale, t);
 
             if (age >= Duration) Destroy(gameObject);
         }

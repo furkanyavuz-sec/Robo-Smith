@@ -18,6 +18,11 @@ public class PlayerBodyVisual : MonoBehaviour
         // Yeniden spawn durumunda çift kurulum olmasın
         if (transform.Find("PlayerBody") != null) return;
 
+        // Kapsül gövde: koyu metal — fütüristik tema (parçalar rengi taşır)
+        if (TryGetComponent<Renderer>(out Renderer bodyRend))
+            bodyRend.sharedMaterial =
+                StationVisuals.GetMaterial(new Color(0.13f, 0.15f, 0.19f));
+
         GameObject body = new GameObject("PlayerBody");
         body.transform.SetParent(transform, false);
 
@@ -46,6 +51,16 @@ public class PlayerBodyVisual : MonoBehaviour
         Part(body, "AntenUcu", PrimitiveType.Sphere,
             new Vector3(0.16f, 1.27f, -0.08f), Vector3.one * 0.09f,
             visorColor);
+
+        // Göğüs çekirdeği — neon enerji kaynağı
+        Part(body, "GogusCekirdegi", PrimitiveType.Sphere,
+            new Vector3(0f, 0.12f, 0.42f), Vector3.one * 0.16f,
+            visorColor);
+
+        // Hover halkası — ayak hizasında ince neon disk
+        Part(body, "HoverHalkasi", PrimitiveType.Cylinder,
+            new Vector3(0f, -0.96f, 0f), new Vector3(0.85f, 0.015f, 0.85f),
+            new Color(0.20f, 0.70f, 1f, 1f));
     }
 
     private void Part(GameObject parent, string partName, PrimitiveType type,

@@ -28,6 +28,39 @@ public class DirectorAI : MonoBehaviour
     [SerializeField] private int atkPerPlasmaCycle  = 130;   // 4 plazma ≈ +130 ATK
     [SerializeField] private int spdPerChipCycle    = 100;   // 3 çip    ≈ +100 SPD
 
+    // ── Zorluk Tablosu (KOD İÇİNDE — tek denge noktası) ──────────────────
+    // Inspector'daki eski seri değerler dengeyi etkilemesin diye buradadır.
+    // speedMult: üretim aralığı çarpanı (büyük = yavaş rakip)
+    // statMult:  robot statlarına çarpan  weaponCount: silah sayısı
+    private struct DifficultyTuning
+    {
+        public float speedMult;
+        public int   maxRobots;
+        public int   weaponCount;
+        public float statMult;
+        public bool  moduleOnLastRobot;
+        public bool  moduleOnAll;
+    }
+
+    private static DifficultyTuning GetTuning(Difficulty d) => d switch
+    {
+        Difficulty.Easy => new DifficultyTuning
+        {   // Öğrenme modu: 2 zayıf robot, çok yavaş üretim, modül yok
+            speedMult = 2.6f, maxRobots = 2, weaponCount = 2, statMult = 0.70f
+        },
+        Difficulty.Hard => new DifficultyTuning
+        {   // Eski "Normal" hız + tam stat + 3 silah + son robota modül
+            speedMult = 1.0f, maxRobots = 3, weaponCount = 3, statMult = 1.0f,
+            moduleOnLastRobot = true
+        },
+        _ => new DifficultyTuning
+        {   // Normal: %50 yavaş üretim, %15 stat kesintisi, modül yok
+            speedMult = 1.5f, maxRobots = 3, weaponCount = 2, statMult = 0.85f
+        },
+    };
+
+    private DifficultyTuning tuning;
+
     // ── Dahili Durum ─────────────────────────────────────────────────────
     private float     plateTimer     = 0f;
     private float     plasmaTimer    = 0f;
@@ -47,18 +80,14 @@ public class DirectorAI : MonoBehaviour
 
     private void Start()
     {
-        // Zorluk çarpanını belirle
+        // Zorluk ayarını kod tablosundan al
         Difficulty diff = MatchData.Instance != null
                         ? MatchData.Instance.SelectedDifficulty
                         : Difficulty.Normal;
 
-        difficultyMult = diff switch
-        {
-            Difficulty.Easy   => 2.0f,    // Yarı hız → interval 2× uzar
-            Difficulty.Normal => 1.0f,
-            Difficulty.Hard   => 0.67f,   // %150 hız → interval 0.67× kısalır
-            _                 => 1.0f
-        };
+        tuning         = GetTuning(diff);
+        difficultyMult = tuning.speedMult;
+        maxRobots      = tuning.maxRobots;   // Inspector değerini tablo yönetir
 
         // Timer'ları zorluğa göre ayarla
         plateTimer  = basePlateInterval  * difficultyMult;
@@ -66,6 +95,10 @@ public class DirectorAI : MonoBehaviour
         chipTimer   = baseChipInterval   * difficultyMult;
 
         isActive = true;
+
+        Debug.Log($"[DirectorAI] Zorluk: {diff} | Hız ×{1f / tuning.speedMult:F2} | " +
+                  $"Robot: {tuning.maxRobots} | Silah: {tuning.weaponCount} | " +
+                  $"Stat ×{tuning.statMult:F2}");
 
         //Debug.Log($"[DirectorAI] Başlatıldı. Zorluk: {diff} | " +
           //        $"Plaka aralığı: {basePlateInterval * difficultyMult:F1}s | " +
@@ -163,12 +196,12 @@ public class DirectorAI : MonoBehaviour
 
     robotsBuilt++;
 
-    // RobotStats → RobotStatSheet'e dönüştür
+    // RobotStats → RobotStatSheet'e dönüştür (zorluk stat çarpanıyla)
     RobotStatSheet sheet = new RobotStatSheet
     {
-        HP  = currentRobotStats.maxHP,
-        ATK = currentRobotStats.attackPower,
-        SPD = currentRobotStats.moveSpeed
+        HP  = Mathf.RoundToInt(currentRobotStats.maxHP       * tuning.statMult),
+        ATK = Mathf.RoundToInt(currentRobotStats.attackPower * tuning.statMult),
+        SPD = Mathf.RoundToInt(currentRobotStats.moveSpeed   * tuning.statMult)
     };
 
     // Silahsız robot arenada saldıramaz — oyuncuyla aynı kurallarla donat
@@ -209,17 +242,7 @@ public class DirectorAI : MonoBehaviour
     /// </summary>
     private void EquipWeapons(RobotStatSheet sheet)
     {
-        Difficulty diff = MatchData.Instance != null
-                        ? MatchData.Instance.SelectedDifficulty
-                        : Difficulty.Normal;
-
-        int weaponTarget = diff switch
-        {
-            Difficulty.Easy   => 2,
-            Difficulty.Normal => 2,
-            Difficulty.Hard   => 3,
-            _                 => 2
-        };
+        int weaponTarget = tuning.weaponCount;
 
         // 1. silah: garantili saldırı silahı
         InstallWeapon(sheet, offensiveWeapons[Random.Range(0, offensiveWeapons.Length)]);
@@ -254,23 +277,11 @@ public class DirectorAI : MonoBehaviour
         return false;
     }
 
-    /// <summary>
-    /// Zorluğa bağlı modül takar:
-    /// Easy → hiç, Normal → sadece son robot, Hard → her robot.
-    /// </summary>
+    /// <summary>Zorluk tablosuna göre modül takar.</summary>
     private void MaybeEquipModule(RobotStatSheet sheet)
     {
-        Difficulty diff = MatchData.Instance != null
-                        ? MatchData.Instance.SelectedDifficulty
-                        : Difficulty.Normal;
-
-        bool give = diff switch
-        {
-            Difficulty.Easy   => false,
-            Difficulty.Normal => robotsBuilt >= maxRobots,  // Sadece son robot
-            Difficulty.Hard   => true,
-            _                 => false
-        };
+        bool give = tuning.moduleOnAll ||
+                    (tuning.moduleOnLastRobot && robotsBuilt >= maxRobots);
         if (!give) return;
 
         sheet.equippedModule = (ModuleType)Random.Range(1, 4); // Repair/Overdrive/Targeting

@@ -65,9 +65,15 @@ public class VisualThemeManager : MonoBehaviour
                 _                     => Color.white
             };
 
+            // Fütüristik tema: gövde koyu metal, içerik rengi hafif ton verir.
+            // Parlak renk kimliği dekorda taşınır (neon çerçeve, taban halkası,
+            // işaret küpü, etiket) — StationVisuals kurar.
+            Color darkBody = Color.Lerp(
+                new Color(0.10f, 0.11f, 0.14f), targetColor, 0.30f);
+
             ApplyColorToObject(
                 station.gameObject,
-                targetColor,
+                darkBody,
                 stationMetallic,
                 stationSmoothness
             );

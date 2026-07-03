@@ -32,6 +32,8 @@ public class DamagePopup : MonoBehaviour
 
         DamagePopup popup = obj.AddComponent<DamagePopup>();
         popup.text            = obj.AddComponent<TextMeshPro>();
+        TMP_FontAsset sciFi   = DisplayFontApplier.GetFont();
+        if (sciFi != null) popup.text.font = sciFi;
         popup.text.text       = message;
         popup.text.fontSize   = 5f * scale;
         popup.text.alignment  = TextAlignmentOptions.Center;

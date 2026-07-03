@@ -63,9 +63,11 @@ public class RocketProjectile : MonoBehaviour
     {
         hasExploded = true;
 
-        // Patlama efekti
+        // Patlama efekti — prefab yoksa koddan mini patlama
         if (explosionVFX != null)
             Instantiate(explosionVFX, center, Quaternion.identity);
+        else
+            DeathExplosion.SmallBlast(center, new Color(0.95f, 0.45f, 0.15f));
 
         // AOE hasar: yarıçap içindeki tüm düşmanlara
         Collider[] hits = Physics.OverlapSphere(center, aoeRadius);

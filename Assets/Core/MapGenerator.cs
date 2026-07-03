@@ -366,12 +366,12 @@ public class MapGenerator : MonoBehaviour
             new Vector3(0f, wallY, -halfD - wallThickness / 2f),
             new Vector3(totalWidth + wallThickness * 2f, wallHeight, wallThickness));
 
-        // Garaj-hurdalık ayraçları: ortada geçit kalır
-        CreateDivider("Ayraç - Mavi",    teamACenter + garageWidth / 2f);
-        CreateDivider("Ayraç - Kırmızı", teamBCenter - garageWidth / 2f);
+        // Garaj-hurdalık ayraçları: ortada geçit kalır, ışıklar takım renginde
+        CreateDivider("Ayraç - Mavi",    teamACenter + garageWidth / 2f, blueAccent);
+        CreateDivider("Ayraç - Kırmızı", teamBCenter - garageWidth / 2f, redAccent);
     }
 
-    private void CreateDivider(string dividerName, float x)
+    private void CreateDivider(string dividerName, float x, Color lightColor)
     {
         float wallY   = wallHeight / 2f;
         float segLen  = garageDepth / 4f;
@@ -379,14 +379,18 @@ public class MapGenerator : MonoBehaviour
 
         CreateWall($"{dividerName} (üst)",
             new Vector3(x, wallY, segMidZ),
-            new Vector3(wallThickness, wallHeight, segLen));
+            new Vector3(wallThickness, wallHeight, segLen), lightColor);
 
         CreateWall($"{dividerName} (alt)",
             new Vector3(x, wallY, -segMidZ),
-            new Vector3(wallThickness, wallHeight, segLen));
+            new Vector3(wallThickness, wallHeight, segLen), lightColor);
     }
 
     private void CreateWall(string wallName, Vector3 position, Vector3 scale)
+        => CreateWall(wallName, position, scale, new Color(0.20f, 0.70f, 0.95f));
+
+    private void CreateWall(string wallName, Vector3 position, Vector3 scale,
+        Color lightColor)
     {
         GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
         wall.name = wallName;
@@ -394,6 +398,21 @@ public class MapGenerator : MonoBehaviour
         wall.transform.position   = MapPos(position);
         wall.transform.localScale = scale;
         ApplyColor(wall, wallTone);
+
+        // Neon tepe şeridi — duvar boyunca ışık hattı (fütüristik kimlik)
+        GameObject strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        strip.name = $"{wallName} (ışık)";
+        strip.transform.SetParent(transform);
+        strip.transform.position = MapPos(position) +
+            Vector3.up * (scale.y / 2f + 0.04f);
+        strip.transform.localScale = new Vector3(
+            Mathf.Max(scale.x * 0.98f, 0.1f), 0.07f,
+            Mathf.Max(scale.z * 0.98f, 0.1f));
+
+        if (strip.TryGetComponent<Collider>(out Collider col))
+            DestroyImmediate(col);
+
+        ApplyColor(strip, lightColor);
     }
 
     // ── Yerleştirme & Yapılandırma ───────────────────────────────────────

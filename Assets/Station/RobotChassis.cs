@@ -86,6 +86,7 @@ public class RobotChassis : BaseStation
         }
 
         SynergySystem.Evaluate(statSheet);
+        ChassisPreviewBuilder.Rebuild(this);   // Holografik taslağı güncelle
         Debug.Log($"[RobotChassis] → {statSheet}");
     }
 
@@ -148,6 +149,7 @@ public void InteractWithMode(PlayerInteraction player, InteractMode mode)
     }
 
     SynergySystem.Evaluate(statSheet);
+    ChassisPreviewBuilder.Rebuild(this);   // Holografik taslağı güncelle
     Debug.Log($"[RobotChassis] → {statSheet}");
 }
 

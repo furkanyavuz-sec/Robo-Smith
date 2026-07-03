@@ -15,10 +15,18 @@ using UnityEngine.Rendering;
 /// <summary>Dekor işareti: VisualThemeManager bu objelerin rengini ezmesin.</summary>
 public class StationDecorTag : MonoBehaviour { }
 
-/// <summary>Yüzen etiket — her karede kameraya döner.</summary>
+/// <summary>Yüzen etiket — her karede kameraya döner. Sci-fi fontu runtime'da yükler.</summary>
 public class StationLabel : MonoBehaviour
 {
     private static Camera cam;
+
+    private void Start()
+    {
+        // Fütüristik font (Audiowide) — runtime'da uygulanır, sahneye gömülmez
+        TMP_FontAsset font = DisplayFontApplier.GetFont();
+        if (font != null && TryGetComponent<TMP_Text>(out TMP_Text tmp))
+            tmp.font = font;
+    }
 
     private void LateUpdate()
     {
@@ -34,6 +42,8 @@ public class StationLabel : MonoBehaviour
 public class BeaconSpin : MonoBehaviour
 {
     [SerializeField] private float degreesPerSecond = 60f;
+
+    public void SetSpeed(float dps) => degreesPerSecond = dps;
 
     private void Update() =>
         transform.Rotate(0f, degreesPerSecond * Time.deltaTime, 0f, Space.World);
@@ -97,13 +107,9 @@ public static class StationVisuals
         if (station == null) return;
         Color c = ItemColor(content);
 
-        // Kasa direkleri — 4 köşede içerik renginde
-        for (int x = -1; x <= 1; x += 2)
-            for (int z = -1; z <= 1; z += 2)
-                Primitive(station, PrimitiveType.Cube,
-                    new Vector3(x * 0.45f, 0.75f, z * 0.45f),
-                    new Vector3(0.12f, 1.5f, 0.12f), c);
-
+        // Neon kasa çerçevesi — içerik renginde
+        AddTechFrame(station, c);
+        AddUnderGlow(station, c);
         AddBeacon(station, c);
         AddLabel(station, $"Tedarik\n<size=75%>{trName}</size>", c);
     }
@@ -124,6 +130,8 @@ public static class StationVisuals
             new Vector3( 0.05f, 0.95f,  0.05f), Vector3.one * 0.30f, c,
             new Vector3(30f, 10f, -20f));
 
+        AddTechFrame(station, c);
+        AddUnderGlow(station, c);
         AddBeacon(station, c);
         AddLabel(station, $"Hurdalık\n<size=75%>{trName}</size>", c);
     }
@@ -145,6 +153,8 @@ public static class StationVisuals
             new Vector3(0f, 0.72f, -0.55f),
             Vector3.one * 0.24f, inputColor, new Vector3(0f, 45f, 0f));
 
+        AddTechFrame(station, weaponColor);
+        AddUnderGlow(station, weaponColor);
         AddLabel(station,
             $"{weaponName} Atölyesi\n<size=70%>Girdi: {inputName}</size>",
             weaponColor);
@@ -160,6 +170,8 @@ public static class StationVisuals
             new Vector3(0.35f, 1.35f, -0.35f),
             new Vector3(0.22f, 0.45f, 0.22f), orange);
 
+        AddTechFrame(station, orange);
+        AddUnderGlow(station, orange);
         AddLabel(station,
             "İşleme Masası\n<size=70%>Demir · Plazma · Devre</size>", orange);
     }
@@ -179,6 +191,8 @@ public static class StationVisuals
             Vector3.one * 0.30f, ItemColor(ItemType.Microchip),
             new Vector3(0f, -20f, 0f));
 
+        AddTechFrame(station, purple);
+        AddUnderGlow(station, purple);
         AddBeacon(station, purple);
         AddLabel(station,
             "Montaj İstasyonu\n<size=70%>2 farklı ürün → Modül</size>", purple);
@@ -187,6 +201,8 @@ public static class StationVisuals
     public static void DecorateTrashBin(GameObject station)
     {
         if (station == null) return;
+        AddTechFrame(station, new Color(0.45f, 0.45f, 0.50f), cornerPosts: false);
+        AddUnderGlow(station, new Color(0.35f, 0.35f, 0.38f));
         AddLabel(station, "Çöp Kutusu", new Color(0.55f, 0.55f, 0.55f));
     }
 
@@ -200,6 +216,8 @@ public static class StationVisuals
             new Vector3(0f, 1.3f, 0f),
             new Vector3(0.35f, 0.6f, 0.35f), c);
 
+        AddTechFrame(station, c, cornerPosts: false);
+        AddUnderGlow(station, c);
         AddBeacon(station, c);
         AddLabel(station, "Plazma Kaynağı", c);
     }
@@ -207,10 +225,50 @@ public static class StationVisuals
     public static void DecorateChassis(GameObject station, string label, Color teamAccent)
     {
         if (station == null) return;
+        AddUnderGlow(station, teamAccent);
         AddLabel(station, label, teamAccent, 2.6f);
     }
 
     // ── Yapı Taşları ─────────────────────────────────────────────────────
+
+    /// <summary>Neon taban halkası — istasyonun altında parlayan ince plaka.</summary>
+    public static void AddUnderGlow(GameObject station, Color color)
+    {
+        Primitive(station, PrimitiveType.Cube,
+            new Vector3(0f, 0.03f, 0f), new Vector3(1.55f, 0.05f, 1.55f),
+            Color.Lerp(color, Color.white, 0.15f));
+    }
+
+    /// <summary>
+    /// Tekno çerçeve: küpün üst kenarlarında neon şeritler (+ isteğe bağlı
+    /// köşe direkleri). Koyu gövde + neon çerçeve = fütüristik istasyon.
+    /// </summary>
+    public static void AddTechFrame(GameObject station, Color color,
+        bool cornerPosts = true)
+    {
+        Color neon = Color.Lerp(color, Color.white, 0.20f);
+        const float half = 0.53f;
+        const float topY = 1.04f;
+
+        // Üst çerçeve — 4 kenar şeridi
+        Primitive(station, PrimitiveType.Cube,
+            new Vector3(0f, topY,  half), new Vector3(1.14f, 0.06f, 0.06f), neon);
+        Primitive(station, PrimitiveType.Cube,
+            new Vector3(0f, topY, -half), new Vector3(1.14f, 0.06f, 0.06f), neon);
+        Primitive(station, PrimitiveType.Cube,
+            new Vector3( half, topY, 0f), new Vector3(0.06f, 0.06f, 1.14f), neon);
+        Primitive(station, PrimitiveType.Cube,
+            new Vector3(-half, topY, 0f), new Vector3(0.06f, 0.06f, 1.14f), neon);
+
+        if (!cornerPosts) return;
+
+        // Köşe direkleri — zeminden çerçeveye
+        for (int x = -1; x <= 1; x += 2)
+            for (int z = -1; z <= 1; z += 2)
+                Primitive(station, PrimitiveType.Cube,
+                    new Vector3(x * half, topY / 2f, z * half),
+                    new Vector3(0.07f, topY, 0.07f), neon * 0.85f);
+    }
 
     /// <summary>Dönen içerik işaret küpü — istasyonun üstünde süzülür.</summary>
     public static void AddBeacon(GameObject station, Color color,

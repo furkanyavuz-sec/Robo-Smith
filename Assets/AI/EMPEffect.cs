@@ -10,15 +10,18 @@ public class EMPEffect : MonoBehaviour
     private float     freezeTimer    = 0f;
     private bool      isFrozen       = false;
     private Renderer  bodyRenderer;
+    private BattleRobot robot;   // Çok parçalı gövdeyi bunun üzerinden boyarız
 
-    // Shader property
-    private static readonly int PropColor = Shader.PropertyToID("_Color");
+    // Shader property — Built-in "_Color", URP "_BaseColor"
+    private static readonly int PropColor     = Shader.PropertyToID("_Color");
+    private static readonly int PropBaseColor = Shader.PropertyToID("_BaseColor");
     private MaterialPropertyBlock propBlock;
 
     public bool IsFrozen => isFrozen;
 
     private void Awake()
     {
+        robot        = GetComponent<BattleRobot>();
         bodyRenderer = GetComponentInChildren<Renderer>();
         propBlock    = new MaterialPropertyBlock();
     }
@@ -49,15 +52,23 @@ public class EMPEffect : MonoBehaviour
     private void Unfreeze()
     {
         isFrozen = false;
-        ApplyFreezeColor(Color.white); // Normal renge dön
+
+        // HP'ye uygun gövde rengine geri dön
+        if (robot != null) robot.RefreshBodyColor();
+        else               ApplyFreezeColor(Color.white);
+
         Debug.Log($"<color=cyan>[EMP] {gameObject.name} EMP etkisinden çıktı.</color>");
     }
 
     private void ApplyFreezeColor(Color color)
     {
+        // Çok parçalı gövde: BattleRobot tüm parçaları boyar
+        if (robot != null) { robot.TintBody(color); return; }
+
         if (bodyRenderer == null) return;
         bodyRenderer.GetPropertyBlock(propBlock);
-        propBlock.SetColor(PropColor, color);
+        propBlock.SetColor(PropColor,     color);
+        propBlock.SetColor(PropBaseColor, color);
         bodyRenderer.SetPropertyBlock(propBlock);
     }
 }

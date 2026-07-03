@@ -65,6 +65,9 @@ public class BattleRobot : MonoBehaviour
     private ModuleType equippedModule = ModuleType.None;
     private float      repairAccumulator;
 
+    // Prosedürel gövde — HP rengine boyanan tüm parçalar
+    private readonly List<Renderer> tintRenderers = new();
+
     // ── Başlatma ─────────────────────────────────────────────────────────
 
     public void Initialize(RobotStatSheet sheet, ArmorType armor, int teamId)
@@ -107,6 +110,11 @@ public class BattleRobot : MonoBehaviour
         weaponBehavior = GetComponent<WeaponBehavior>();
 
         memory?.Reset();
+
+        // Prosedürel gövde: kafa, omuzlar, silah propları, modül ışığı
+        tintRenderers.Clear();
+        if (bodyRenderer != null) tintRenderers.Add(bodyRenderer);
+        RobotBodyBuilder.Build(gameObject, sheet, teamId, tintRenderers);
 
         // Kalkan silahı varsa ShieldController başlat
         WeaponData shieldWeapon = GetWeaponOfCategory(WeaponCategory.Defensive);
@@ -467,10 +475,17 @@ public class BattleRobot : MonoBehaviour
     {
         agent.ResetPath();
         agent.enabled = false;
-        FlashColor(Color.red, 0f);
+
         Debug.Log($"[BattleRobot] Takım {TeamID} robotu yok edildi!");
+
+        // Patlama: parça savrulması + flaş, ceset anında kaybolur
+        DeathExplosion.Spawn(transform.position,
+            RobotBodyBuilder.TeamAccent(TeamID));
+
         ArenaManager.Instance?.OnRobotDestroyed(this);
-        Destroy(gameObject, 1.2f);
+
+        gameObject.SetActive(false);
+        Destroy(gameObject, 0.5f);
     }
 
     // ── Silah Yardımcıları ───────────────────────────────────────────────
@@ -586,16 +601,34 @@ public class BattleRobot : MonoBehaviour
 
     private void UpdateBodyColor()
     {
-        if (bodyRenderer == null) return;
+        if (tintRenderers.Count == 0) return;
         if (empEffect != null && empEffect.IsFrozen) return; // EMP rengi öncelikli
 
-        float ratio = (float)currentHP / maxHP;
-        Color c     = Color.Lerp(Color.red, new Color(0.2f, 0.6f, 1f), ratio);
+        // Sağlıklı = takım rengi, ölüme yakın = karanlık.
+        // (Eskiden kırmızı→mavi lerp'ti: kırmızı takım tam canken mavi görünüyordu!)
+        float ratio   = (float)currentHP / maxHP;
+        Color healthy = RobotBodyBuilder.TeamAccent(TeamID);
+        Color c       = Color.Lerp(new Color(0.07f, 0.07f, 0.09f), healthy, ratio);
 
-        bodyRenderer.GetPropertyBlock(propBlock);
-        propBlock.SetColor(PropColor,     c);
-        propBlock.SetColor(PropBaseColor, c);
-        bodyRenderer.SetPropertyBlock(propBlock);
+        TintAll(c);
+    }
+
+    /// <summary>EMPEffect gibi dış efektler tüm gövdeyi boyamak için çağırır.</summary>
+    public void TintBody(Color c) => TintAll(c);
+
+    /// <summary>Dış efekt bitince HP'ye uygun rengi geri yükler.</summary>
+    public void RefreshBodyColor() => UpdateBodyColor();
+
+    private void TintAll(Color c)
+    {
+        foreach (Renderer rend in tintRenderers)
+        {
+            if (rend == null) continue;
+            rend.GetPropertyBlock(propBlock);
+            propBlock.SetColor(PropColor,     c);
+            propBlock.SetColor(PropBaseColor, c);
+            rend.SetPropertyBlock(propBlock);
+        }
     }
 
     private void FlashColor(Color color, float duration)
@@ -606,11 +639,8 @@ public class BattleRobot : MonoBehaviour
 
     private IEnumerator FlashRoutine(Color color, float duration)
     {
-        if (bodyRenderer == null) yield break;
-        bodyRenderer.GetPropertyBlock(propBlock);
-        propBlock.SetColor(PropColor,     color);
-        propBlock.SetColor(PropBaseColor, color);
-        bodyRenderer.SetPropertyBlock(propBlock);
+        if (tintRenderers.Count == 0) yield break;
+        TintAll(color);
         if (duration > 0f)
         {
             yield return new WaitForSeconds(duration);

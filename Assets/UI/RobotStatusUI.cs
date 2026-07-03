@@ -31,9 +31,14 @@ public class RobotStatusUI : MonoBehaviour
     [SerializeField] private float updateInterval = 0.2f;
 
     [Header("Referanslar")]
-    [SerializeField] private RobotChassis[] chassisList;  // Her iki şasiyi bağla
+    [SerializeField] private RobotChassis[] chassisList;  // Şasileri bağla
 
-    private float updateTimer = 0f;
+    [Header("Başlık (opsiyonel)")]
+    [SerializeField] private TextMeshProUGUI headerText;  // Hangi şasi gösteriliyor
+
+    private float             updateTimer = 0f;
+    private PlayerInteraction player;
+    private float             playerSearchTimer;
 
     private void Update()
 {
@@ -41,25 +46,44 @@ public class RobotStatusUI : MonoBehaviour
     if (updateTimer > 0f) return;
     updateTimer = updateInterval;
 
-    // En güçlü şasiyi bul (HP + ATK + SPD + DEF toplamı)
-    RobotChassis strongest = null;
-    int          maxPower  = -1;
+    // Oyuncu runtime'da spawn olur — bulunana dek ara
+    if (player == null)
+    {
+        playerSearchTimer -= updateInterval;
+        if (playerSearchTimer <= 0f)
+        {
+            playerSearchTimer = 0.5f;
+            player = FindFirstObjectByType<PlayerInteraction>();
+        }
+    }
+
+    // Oyuncuya EN YAKIN şasiyi göster — hangi robotun başındaysan onu görürsün
+    RobotChassis nearest     = null;
+    float        nearestDist = float.MaxValue;
 
     foreach (RobotChassis c in chassisList)
     {
         if (c == null) continue;
-        RobotStatSheet s = c.StatSheet;
-        int power = s.HP + s.ATK + s.SPD + s.DEF;
 
-        if (power > maxPower)
+        float dist = player != null
+            ? Vector3.Distance(player.transform.position, c.transform.position)
+            : 0f;   // Oyuncu henüz yoksa ilk şasi gösterilir
+
+        if (dist < nearestDist)
         {
-            maxPower  = power;
-            strongest = c;
+            nearestDist = dist;
+            nearest     = c;
         }
+
+        if (player == null) break;
     }
 
-    if (strongest == null) return;
-    RefreshUI(strongest.StatSheet, strongest.EquippedArmor);
+    if (nearest == null) return;
+
+    if (headerText != null)
+        headerText.text = nearest.gameObject.name.ToUpperInvariant();
+
+    RefreshUI(nearest.StatSheet, nearest.EquippedArmor);
 }
 
     private void RefreshUI(RobotStatSheet sheet, ArmorType armor)
@@ -79,11 +103,10 @@ public class RobotStatusUI : MonoBehaviour
         {
             WeaponData w = sheet.equippedWeapons[i];
 
-            // Sonraki seviye için gereken malzemeyi göster —
-            // bu bilgi daha önce sadece konsol logundaydı
+            // Sonraki seviye için gereken malzeme + teslim ilerlemesi
             UpgradeLevel next = WeaponUpgradeSystem.GetNextLevel(w);
             string hint = next != null
-                ? $"  →  {next.requiredAmount}x {MaterialShortName(next.requiredMaterial)}"
+                ? $"  →  {w.upgradeProgress}/{next.requiredAmount} {MaterialShortName(next.requiredMaterial)}"
                 : "";
 
             weaponSlotTexts[i].text  = $"{w.weaponName} [{w.UpgradeStatus}]{hint}";
@@ -106,9 +129,15 @@ public class RobotStatusUI : MonoBehaviour
 
     if (armorText != null)
     {
-        armorText.text  = armor == ArmorType.None
+        string armorPart = armor == ArmorType.None
             ? "Zırh: Yok"
             : $"Zırh: {ArmorShortName(armor)}  ({ArmorResistanceTable.GetDescription(armor)})";
+
+        string modulePart = sheet.equippedModule == ModuleType.None
+            ? ""
+            : $"\n🔧 {ModuleCatalog.TrName(sheet.equippedModule)}";
+
+        armorText.text  = armorPart + modulePart;
         armorText.color = armor == ArmorType.None ? Color.grey : Color.white;
     }
 

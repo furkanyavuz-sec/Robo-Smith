@@ -19,6 +19,9 @@ public class RobotStatSheet
     public WeaponData[] equippedWeapons = new WeaponData[3];
     public int          weaponCount     = 0;
 
+    // ── Modül Yuvası (1 adet) ────────────────────────────────────────────
+    public ModuleType equippedModule = ModuleType.None;
+
     // ── Sinerji ─────────────────────────────────────────────────────────
     public SynergyBonus activeSynergy = SynergyBonus.None;
 
@@ -28,11 +31,12 @@ public class RobotStatSheet
         weaponCount  = 0;
         activeSynergy = SynergyBonus.None;
         equippedWeapons = new WeaponData[3];
+        equippedModule  = ModuleType.None;
     }
 
     public override string ToString() =>
         $"HP:{HP} ATK:{ATK} SPD:{SPD} DEF:{DEF} " +
-        $"Silah:{weaponCount} Sinerji:{activeSynergy}";
+        $"Silah:{weaponCount} Modül:{equippedModule} Sinerji:{activeSynergy}";
 }
 
 // ── Stat Hesaplama Fabrikası ─────────────────────────────────────────────

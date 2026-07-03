@@ -26,9 +26,13 @@ public class VisualThemeManager : MonoBehaviour
 
     // ── Shader property ID'leri (string lookup önleme) ───────────────────
     // Shader.PropertyToID bir kez hesaplanır, Update'de string karşılaştırması olmaz.
+    // NOT: Built-in RP "_Color", URP Lit "_BaseColor" kullanır — ikisi de set
+    // edilir, hangi pipeline aktifse o okur. (URP'de renkler bu yüzden çalışmıyordu.)
     private static readonly int PropColor      = Shader.PropertyToID("_Color");
+    private static readonly int PropBaseColor  = Shader.PropertyToID("_BaseColor");
     private static readonly int PropMetallic   = Shader.PropertyToID("_Metallic");
     private static readonly int PropGlossiness = Shader.PropertyToID("_Glossiness"); // Smoothness
+    private static readonly int PropSmoothness = Shader.PropertyToID("_Smoothness"); // URP
 
     private void Start()
     {
@@ -50,10 +54,15 @@ public class VisualThemeManager : MonoBehaviour
         {
             Color targetColor = station switch
             {
-                SupplyBin  => supplyBinColor,
-                TrashBin   => trashBinColor,
-                Processor  => processorColor,
-                _          => Color.white
+                // Kaynak istasyonları içerik rengine boyanır —
+                // "hangi kutu ne veriyor" uzaktan okunsun
+                SupplyBin bin           => StationVisuals.ItemColor(bin.SupplyType),
+                ScrapyardStation yard   => StationVisuals.ItemColor(yard.SupplyType),
+                WeaponCraftStation w    => StationVisuals.ItemColor(w.OutputWeapon),
+                PlasmaSource            => StationVisuals.ItemColor(ItemType.RawPlasma),
+                TrashBin              => trashBinColor,
+                Processor             => processorColor,
+                _                     => Color.white
             };
 
             ApplyColorToObject(
@@ -116,14 +125,19 @@ public class VisualThemeManager : MonoBehaviour
 
         foreach (Renderer rend in renderers)
         {
+            // Dekor parçaları (etiket, beacon, tabela) kendi rengini korur
+            if (rend.GetComponentInParent<StationDecorTag>() != null) continue;
+
             MaterialPropertyBlock block = new MaterialPropertyBlock();
 
             // Mevcut değerleri koru (override etmek istediğimiz dışındakileri bozmaz)
             rend.GetPropertyBlock(block);
 
-            block.SetColor(PropColor,      color);
+            block.SetColor(PropColor,      color);   // Built-in RP
+            block.SetColor(PropBaseColor,  color);   // URP Lit
             block.SetFloat(PropMetallic,   metallic);
             block.SetFloat(PropGlossiness, smoothness);
+            block.SetFloat(PropSmoothness, smoothness);
 
             rend.SetPropertyBlock(block);
         }
@@ -206,11 +220,14 @@ public class VisualThemeManager : MonoBehaviour
         ItemType.PlasmaCore  => plasmaCoreConfig,
         ItemType.Circuit     => circuitConfig,
         ItemType.Microchip   => microchipConfig,
-        _                    => new ItemVisualConfig
-                                {
-                                    color      = Color.white,
-                                    metallic   = 0f,
-                                    smoothness = 0.5f
-                                }
+
+        // Hurdalık maddeleri ve silahlar: merkezi paletten
+        // (kutu rengi = item rengi = silah rengi — StationVisuals.ItemColor)
+        _ => new ItemVisualConfig
+             {
+                 color      = StationVisuals.ItemColor(type),
+                 metallic   = 0.4f,
+                 smoothness = 0.6f
+             }
     };
 }

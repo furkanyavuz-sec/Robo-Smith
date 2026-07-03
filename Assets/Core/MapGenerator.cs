@@ -1,18 +1,17 @@
-// MapGenerator.cs — v2: Tam donanımlı üç bölgeli harita
-// Görev: [Mavi Garaj] | [Tarafsız Hurdalık] | [Kırmızı Garaj] düzenini
-//        TÜM istasyonlarla, doğru YAPILANDIRMAYLA kurar.
-// v1'den farkları:
-//   • İstasyonlar sadece isimlendirilmez, içerikleri de ayarlanır
-//     (v1'de "WeaponCraft_Laser" aslında Kılıç üretiyordu!)
-//   • Eksiksiz set: garaj başına Demir+Devre kutusu, 3 şasi;
-//     ortada 5 hurdalık, 5 silah atölyesi, plazma kaynağı
-//   • GameManager.playerChassis ve OfflinePlayerSpawner.spawnPoint
-//     otomatik bağlanır
-//   • Harita generator objesinin pozisyonuna göre kurulur — taşınabilir
-// Kullanım: MapGenerator objesi → sağ tık → "Generate Map" → sahneyi kaydet.
+// MapGenerator.cs — v2.1: Üç bölgeli harita + görsel tasarım
+// Düzen: [Mavi Garaj] | [Tarafsız Hurdalık - gri] | [Kırmızı Garaj]
+// v2.1 yenilikleri:
+//   • Magenta sorunu çözüldü: shader artık aktif render pipeline'dan alınıyor
+//     (URP'de Shader.Find("Standard") pembe render ediyordu)
+//   • Görsel tasarım: takım renginde zemin + parlak kenar şeritleri,
+//     şasi platformları, spawn pedleri; tarafsız bölgede gri tonlu zemin,
+//     yürüyüş yolları, siper sandıkları ve sütunlar
+//   • Malzemeler renk başına önbelleklenir (onlarca kopya materyal yok)
+// Kullanım: Map objesi → sağ tık → "Generate Map" → sahneyi kaydet.
 
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 public class MapGenerator : MonoBehaviour
 {
@@ -23,11 +22,18 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private float wallHeight     = 3f;
     [SerializeField] private float wallThickness  = 0.5f;
 
-    [Header("Renkler")]
-    [SerializeField] private Color teamAColor     = new Color(0.16f, 0.22f, 0.38f); // Mavi zemin
-    [SerializeField] private Color teamBColor     = new Color(0.38f, 0.16f, 0.16f); // Kırmızı zemin
-    [SerializeField] private Color scrapyardColor = new Color(0.28f, 0.26f, 0.20f); // Tarafsız zemin
-    [SerializeField] private Color wallColor      = new Color(0.3f, 0.3f, 0.3f);
+    [Header("Renk Paleti — Takımlar")]
+    [SerializeField] private Color blueFloor  = new Color(0.13f, 0.18f, 0.32f);
+    [SerializeField] private Color blueAccent = new Color(0.25f, 0.50f, 0.95f);
+    [SerializeField] private Color redFloor   = new Color(0.30f, 0.12f, 0.12f);
+    [SerializeField] private Color redAccent  = new Color(0.95f, 0.32f, 0.26f);
+
+    [Header("Renk Paleti — Tarafsız Bölge (gri tonlar)")]
+    [SerializeField] private Color neutralFloor = new Color(0.15f, 0.15f, 0.17f);
+    [SerializeField] private Color neutralMid   = new Color(0.22f, 0.22f, 0.24f);
+    [SerializeField] private Color neutralLight = new Color(0.34f, 0.34f, 0.37f);
+    [SerializeField] private Color crateGray    = new Color(0.28f, 0.28f, 0.30f);
+    [SerializeField] private Color wallTone     = new Color(0.19f, 0.19f, 0.21f);
 
     [Header("İstasyon Prefabları")]
     [SerializeField] private GameObject supplyBinPrefab;
@@ -53,16 +59,16 @@ public class MapGenerator : MonoBehaviour
         teamBCenter =  (garageWidth + scrapyardWidth) / 2f;
 
         // Zeminler
-        CreateFloor("Zemin - Mavi Garaj",  teamACenter, garageWidth,    teamAColor);
-        CreateFloor("Zemin - Hurdalık",    0f,          scrapyardWidth, scrapyardColor);
-        CreateFloor("Zemin - Kırmızı Garaj", teamBCenter, garageWidth,  teamBColor);
+        CreateFloor("Zemin - Mavi Garaj",    teamACenter, garageWidth,    blueFloor);
+        CreateFloor("Zemin - Hurdalık",      0f,          scrapyardWidth, neutralFloor);
+        CreateFloor("Zemin - Kırmızı Garaj", teamBCenter, garageWidth,    redFloor);
 
         CreateWalls();
 
         // Garajlar (aynalı) + tarafsız orta bölge
         List<RobotChassis> blueChassis = BuildGarage(teamACenter, -1, "Mavi",
-            out Transform blueSpawn);
-        BuildGarage(teamBCenter, +1, "Kırmızı", out Transform _);
+            blueAccent, out Transform blueSpawn);
+        BuildGarage(teamBCenter, +1, "Kırmızı", redAccent, out Transform _);
         BuildScrapyard();
 
         WireSceneReferences(blueChassis, blueSpawn);
@@ -81,29 +87,38 @@ public class MapGenerator : MonoBehaviour
     // ── Garaj (takım bölgesi) ────────────────────────────────────────────
 
     private List<RobotChassis> BuildGarage(float centerX, int sign, string zone,
-        out Transform spawnPoint)
+        Color accent, out Transform spawnPoint)
     {
-        // sign: -1 = sol (Mavi) → dış kenar solda; +1 = sağ (Kırmızı)
-        // Tedarik kutuları dış kenara, şasiler ortaya, geçit tarafına spawn.
+        // sign: -1 = sol (Mavi), +1 = sağ (Kırmızı)
 
+        // ── Görsel: kenar şeritleri + şasi platformu ────────────────────
+        BuildGarageDecor(centerX, sign, accent);
+
+        // ── İstasyonlar ─────────────────────────────────────────────────
         SupplyBin ironBin = Place<SupplyBin>(supplyBinPrefab,
             $"Tedarik Kutusu - Demir [{zone}]",
             new Vector3(centerX + sign * 7f, 0f, -6f));
         Configure(ironBin, "supplyItemType", ItemType.Iron);
         TryAssignPrefab(ironBin, "itemPrefab", "Iron_Prefab");
+        StationVisuals.DecorateSupplyBin(ironBin?.gameObject, ItemType.Iron, "Demir");
 
         SupplyBin circuitBin = Place<SupplyBin>(supplyBinPrefab,
             $"Tedarik Kutusu - Devre [{zone}]",
             new Vector3(centerX + sign * 7f, 0f, -2f));
         Configure(circuitBin, "supplyItemType", ItemType.Circuit);
         TryAssignPrefab(circuitBin, "itemPrefab", "Circuit_Prefab");
+        StationVisuals.DecorateSupplyBin(circuitBin?.gameObject, ItemType.Circuit, "Devre");
 
-        Place<TrashBin>(trashBinPrefab, $"Çöp Kutusu [{zone}]",
+        TrashBin trash = Place<TrashBin>(trashBinPrefab, $"Çöp Kutusu [{zone}]",
             new Vector3(centerX + sign * 7f, 0f, 6f));
+        StationVisuals.DecorateTrashBin(trash?.gameObject);
 
-        Place<Processor>(processorPrefab, $"İşleme Masası [{zone}]",
+        Processor processor = Place<Processor>(processorPrefab,
+            $"İşleme Masası [{zone}]",
             new Vector3(centerX + sign * 3f, 0f, 7f));
-        // Tarifler prefabdan gelir (Demir/Plazma/Devre — 3 tarif)
+        StationVisuals.DecorateProcessor(processor?.gameObject);
+
+        PlaceAssemblyStation(zone, new Vector3(centerX + sign * 3f, 0f, -7f));
 
         // 3 şasi — GameManager 3 oyuncu robotu destekliyor
         var chassisList = new List<RobotChassis>();
@@ -112,23 +127,72 @@ public class MapGenerator : MonoBehaviour
             RobotChassis chassis = Place<RobotChassis>(chassisPrefab,
                 $"Robot Şasisi {i + 1} [{zone}]",
                 new Vector3(centerX, 0f, -5f + i * 5f));
-            if (chassis != null) chassisList.Add(chassis);
+            if (chassis != null)
+            {
+                chassisList.Add(chassis);
+                StationVisuals.DecorateChassis(chassis.gameObject,
+                    $"Robot Şasisi {i + 1}", accent);
+            }
         }
 
-        // Spawn noktası — geçide yakın iç kenar
+        // ── Spawn noktası + ped ─────────────────────────────────────────
         GameObject spawn = new GameObject($"PlayerSpawn [{zone}]");
         spawn.transform.SetParent(transform);
         spawn.transform.position = MapPos(new Vector3(centerX - sign * 7f, 0.75f, 0f));
         spawnPoint = spawn.transform;
 
+        CreatePad($"Spawn Pedi [{zone}]",
+            new Vector3(centerX - sign * 7f, 0f, 0f), new Vector2(3f, 3f), accent);
+
         return chassisList;
     }
 
-    // ── Tarafsız Orta Bölge (Hurdalık) ───────────────────────────────────
+    private void BuildGarageDecor(float centerX, int sign, Color accent)
+    {
+        float halfW = garageWidth / 2f;
+        float halfD = garageDepth / 2f;
+
+        // Parlak kenar şeritleri — garaj sınırını takım rengiyle çerçeveler
+        CreatePad("Şerit (dış)",
+            new Vector3(centerX + sign * (halfW - 0.6f), 0f, 0f),
+            new Vector2(0.5f, garageDepth - 1.2f), accent);
+
+        CreatePad("Şerit (geçit)",
+            new Vector3(centerX - sign * (halfW - 0.6f), 0f, 0f),
+            new Vector2(0.5f, garageDepth - 1.2f), accent);
+
+        CreatePad("Şerit (ön)",
+            new Vector3(centerX, 0f, halfD - 0.6f),
+            new Vector2(garageWidth - 1.2f, 0.5f), accent);
+
+        CreatePad("Şerit (arka)",
+            new Vector3(centerX, 0f, -(halfD - 0.6f)),
+            new Vector2(garageWidth - 1.2f, 0.5f), accent);
+
+        // Şasi platformu — üç şasinin altında hafif açık ton
+        Color platform = Color.Lerp(
+            sign < 0 ? blueFloor : redFloor, Color.white, 0.12f);
+        CreatePad("Şasi Platformu",
+            new Vector3(centerX, 0f, 0f), new Vector2(5f, 16f), platform);
+    }
+
+    // ── Tarafsız Orta Bölge (Hurdalık — gri tonlar) ──────────────────────
 
     private void BuildScrapyard()
     {
-        // Orta kolon: 5 ham madde hurdalığı (rekabetçi kaynaklar)
+        float halfD = garageDepth / 2f;
+
+        // İç zemin katmanı — kenarlardan bir tık açık gri
+        CreatePad("Hurdalık İç Zemin",
+            Vector3.zero, new Vector2(scrapyardWidth - 2f, garageDepth - 2f),
+            neutralMid, 0.015f);
+
+        // Geçitleri birbirine bağlayan yürüyüş yolu
+        CreatePad("Yürüyüş Yolu",
+            Vector3.zero, new Vector2(scrapyardWidth - 0.5f, 2.2f),
+            neutralLight, 0.03f);
+
+        // Orta kolon: 5 ham madde hurdalığı
         (ItemType type, string name)[] scraps =
         {
             (ItemType.ScrapMetal,   "Hurda Metal"),
@@ -140,40 +204,96 @@ public class MapGenerator : MonoBehaviour
 
         for (int i = 0; i < scraps.Length; i++)
         {
+            float z = -8f + i * 4f;
             ScrapyardStation s = Place<ScrapyardStation>(scrapyardStationPrefab,
                 $"Hurdalık - {scraps[i].name}",
-                new Vector3(0f, 0f, -8f + i * 4f));
+                new Vector3(0f, 0f, z));
             Configure(s, "supplyType", scraps[i].type);
             TryAssignPrefab(s, "itemPrefab", "ScrapMetal_Prefab");
-            // Görsel kimlik ItemVisual'dan gelir — prefab ortak olabilir
+            StationVisuals.DecorateScrapyard(s?.gameObject,
+                scraps[i].type, scraps[i].name);
+
+            CreatePad($"İstasyon Pedi - {scraps[i].name}",
+                new Vector3(0f, 0f, z), new Vector2(2.4f, 2.4f), neutralLight, 0.025f);
         }
 
         // Sol kolon: 3 silah atölyesi
-        BuildWeaponCraft(new Vector3(-5f, 0f, -7f),   ItemType.ScrapMetal,   ItemType.Sword,  "Kılıç");
-        BuildWeaponCraft(new Vector3(-5f, 0f, -2.5f), ItemType.CrystalShard, ItemType.Laser,  "Lazer");
-        BuildWeaponCraft(new Vector3(-5f, 0f,  2.5f), ItemType.RocketFuel,   ItemType.Rocket, "Roket");
+        BuildWeaponCraft(new Vector3(-5f, 0f, -7f),   ItemType.ScrapMetal,   ItemType.Sword,  "Kılıç",  "Hurda Metal");
+        BuildWeaponCraft(new Vector3(-5f, 0f, -2.5f), ItemType.CrystalShard, ItemType.Laser,  "Lazer",  "Kristal Kıymık");
+        BuildWeaponCraft(new Vector3(-5f, 0f,  2.5f), ItemType.RocketFuel,   ItemType.Rocket, "Roket",  "Roket Yakıtı");
 
-        // Sağ kolon: 2 silah atölyesi + plazma kaynağı
-        BuildWeaponCraft(new Vector3(5f, 0f, -7f),   ItemType.ShieldAlloy, ItemType.Shield, "Kalkan");
-        BuildWeaponCraft(new Vector3(5f, 0f, -2.5f), ItemType.EMPCore,     ItemType.EMP,    "EMP");
+        // Sağ kolon: 2 silah atölyesi + plazma kaynakları
+        BuildWeaponCraft(new Vector3(5f, 0f, -7f),   ItemType.ShieldAlloy, ItemType.Shield, "Kalkan", "Kalkan Alaşımı");
+        BuildWeaponCraft(new Vector3(5f, 0f, -2.5f), ItemType.EMPCore,     ItemType.EMP,    "EMP",    "EMP Çekirdeği");
 
-        Place<PlasmaSource>(plasmaSourcePrefab, "Plazma Kaynağı",
-            new Vector3(5f, 0f, 3f));
+        PlasmaSource plasma1 = Place<PlasmaSource>(plasmaSourcePrefab,
+            "Plazma Kaynağı", new Vector3(5f, 0f, 3f));
+        StationVisuals.DecoratePlasmaSource(plasma1?.gameObject);
 
-        Place<PlasmaSource>(plasmaSourcePrefab, "Plazma Kaynağı (2)",
-            new Vector3(-5f, 0f, 7f));
+        PlasmaSource plasma2 = Place<PlasmaSource>(plasmaSourcePrefab,
+            "Plazma Kaynağı (2)", new Vector3(-5f, 0f, 7f));
+        StationVisuals.DecoratePlasmaSource(plasma2?.gameObject);
+
+        // Dekor: siper sandıkları — gri tonlarda, çeşitli boylar
+        CreateCrate("Sandık 1", new Vector3(-2.6f,  0f,  5.2f), 1.3f,  18f);
+        CreateCrate("Sandık 2", new Vector3( 2.6f,  0f,  5.6f), 1.0f, -25f);
+        CreateCrate("Sandık 3", new Vector3( 2.8f,  0f, -5.4f), 1.4f,  40f);
+        CreateCrate("Sandık 4", new Vector3(-2.7f,  0f, -5.8f), 1.1f, -12f);
+        CreateCrate("Sandık 5", new Vector3( 6.3f,  0f,  8.2f), 0.9f,  30f);
+        CreateCrate("Sandık 6", new Vector3(-6.3f,  0f, -8.4f), 0.9f, -35f);
+
+        // Dekor: köşe sütunları — hafif siper
+        CreatePillar("Sütun 1", new Vector3(-2.5f, 0f,  8.6f));
+        CreatePillar("Sütun 2", new Vector3( 2.5f, 0f,  8.6f));
+        CreatePillar("Sütun 3", new Vector3(-2.5f, 0f, -8.6f));
+        CreatePillar("Sütun 4", new Vector3( 2.5f, 0f, -8.6f));
+
+        // Geçit işaretleri — garaj sınırındaki kapı ağızları
+        float gateAx = teamACenter + garageWidth / 2f;
+        float gateBx = teamBCenter - garageWidth / 2f;
+        CreatePad("Geçit İşareti (Mavi)",
+            new Vector3(gateAx, 0f, 0f), new Vector2(1.2f, garageDepth / 2f),
+            neutralLight, 0.03f);
+        CreatePad("Geçit İşareti (Kırmızı)",
+            new Vector3(gateBx, 0f, 0f), new Vector2(1.2f, garageDepth / 2f),
+            neutralLight, 0.03f);
     }
 
-    private void BuildWeaponCraft(Vector3 pos, ItemType input, ItemType output, string trName)
+    /// <summary>
+    /// Montaj İstasyonu için ayrı prefab yok — Processor prefabını klonlayıp
+    /// bileşenini AssemblyStation ile değiştiririz (görsel/collider/layer kalır).
+    /// </summary>
+    private void PlaceAssemblyStation(string zone, Vector3 pos)
+    {
+        Processor temp = Place<Processor>(processorPrefab,
+            $"Montaj İstasyonu [{zone}]", pos);
+        if (temp == null) return;
+
+        GameObject obj = temp.gameObject;
+        if (Application.isPlaying) Destroy(temp);
+        else                       DestroyImmediate(temp);
+
+        AssemblyStation assembly = obj.AddComponent<AssemblyStation>();
+        TryAssignPrefab(assembly, "outputPrefab", "PlasmaCore_Prefab");
+        StationVisuals.DecorateAssembly(obj);
+    }
+
+    private void BuildWeaponCraft(Vector3 pos, ItemType input, ItemType output,
+        string trName, string inputTrName)
     {
         WeaponCraftStation w = Place<WeaponCraftStation>(weaponCraftStationPrefab,
             $"Silah Atölyesi - {trName}", pos);
         Configure(w, "inputType",        input);
         Configure(w, "outputWeaponType", output);
         TryAssignPrefab(w, "outputPrefab", "Weapon_Prefab");
+        StationVisuals.DecorateWeaponCraft(w?.gameObject,
+            input, output, trName, inputTrName);
+
+        CreatePad($"İstasyon Pedi - {trName}",
+            pos, new Vector2(2.4f, 2.4f), neutralLight, 0.025f);
     }
 
-    // ── Zemin & Duvarlar ─────────────────────────────────────────────────
+    // ── Zemin, Duvar & Dekor Primitifleri ────────────────────────────────
 
     private void CreateFloor(string floorName, float centerX, float width, Color color)
     {
@@ -183,6 +303,44 @@ public class MapGenerator : MonoBehaviour
         floor.transform.position   = MapPos(new Vector3(centerX, -0.5f, 0f));
         floor.transform.localScale = new Vector3(width, 1f, garageDepth);
         ApplyColor(floor, color);
+    }
+
+    /// <summary>Zeminin üstünde ince renkli plaka (şerit/ped/yol).</summary>
+    private void CreatePad(string padName, Vector3 pos, Vector2 size,
+        Color color, float yOffset = 0.02f)
+    {
+        GameObject pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        pad.name = padName;
+        pad.transform.SetParent(transform);
+        pad.transform.position   = MapPos(new Vector3(pos.x, yOffset, pos.z));
+        pad.transform.localScale = new Vector3(size.x, 0.04f, size.y);
+
+        // Ped dekoratif — oyuncuya takılmasın
+        if (pad.TryGetComponent<Collider>(out Collider col))
+            DestroyImmediate(col);
+
+        ApplyColor(pad, color);
+    }
+
+    private void CreateCrate(string crateName, Vector3 pos, float size, float yRot)
+    {
+        GameObject crate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        crate.name = crateName;
+        crate.transform.SetParent(transform);
+        crate.transform.position   = MapPos(new Vector3(pos.x, size / 2f, pos.z));
+        crate.transform.rotation   = Quaternion.Euler(0f, yRot, 0f);
+        crate.transform.localScale = Vector3.one * size;
+        ApplyColor(crate, crateGray);
+    }
+
+    private void CreatePillar(string pillarName, Vector3 pos)
+    {
+        GameObject pillar = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        pillar.name = pillarName;
+        pillar.transform.SetParent(transform);
+        pillar.transform.position   = MapPos(new Vector3(pos.x, 1.25f, pos.z));
+        pillar.transform.localScale = new Vector3(1.2f, 2.5f, 1.2f);
+        ApplyColor(pillar, neutralLight);
     }
 
     private void CreateWalls()
@@ -208,7 +366,7 @@ public class MapGenerator : MonoBehaviour
             new Vector3(0f, wallY, -halfD - wallThickness / 2f),
             new Vector3(totalWidth + wallThickness * 2f, wallHeight, wallThickness));
 
-        // Garaj-hurdalık ayraçları: ortada geçit kalır (geçit ≈ garageDepth/2)
+        // Garaj-hurdalık ayraçları: ortada geçit kalır
         CreateDivider("Ayraç - Mavi",    teamACenter + garageWidth / 2f);
         CreateDivider("Ayraç - Kırmızı", teamBCenter - garageWidth / 2f);
     }
@@ -216,7 +374,7 @@ public class MapGenerator : MonoBehaviour
     private void CreateDivider(string dividerName, float x)
     {
         float wallY   = wallHeight / 2f;
-        float segLen  = garageDepth / 4f;          // Üstte ve altta birer parça
+        float segLen  = garageDepth / 4f;
         float segMidZ = garageDepth / 2f - segLen / 2f;
 
         CreateWall($"{dividerName} (üst)",
@@ -235,7 +393,7 @@ public class MapGenerator : MonoBehaviour
         wall.transform.SetParent(transform);
         wall.transform.position   = MapPos(position);
         wall.transform.localScale = scale;
-        ApplyColor(wall, wallColor);
+        ApplyColor(wall, wallTone);
     }
 
     // ── Yerleştirme & Yapılandırma ───────────────────────────────────────
@@ -291,7 +449,6 @@ public class MapGenerator : MonoBehaviour
 
     private void WireSceneReferences(List<RobotChassis> blueChassis, Transform blueSpawn)
     {
-        // GameManager: oyuncu şasileri (Mavi takım)
         GameManager gm = FindFirstObjectByType<GameManager>();
         if (gm != null && blueChassis.Count > 0)
         {
@@ -299,7 +456,6 @@ public class MapGenerator : MonoBehaviour
             Debug.Log($"[MapGenerator] GameManager'a {blueChassis.Count} şasi bağlandı.");
         }
 
-        // Offline spawner: Mavi spawn noktası
         OfflinePlayerSpawner spawner = FindFirstObjectByType<OfflinePlayerSpawner>();
         if (spawner != null && blueSpawn != null)
         {
@@ -307,7 +463,6 @@ public class MapGenerator : MonoBehaviour
             Debug.Log("[MapGenerator] OfflinePlayerSpawner spawn noktasına bağlandı.");
         }
 
-        // Hazırlık HUD'ı yeni şasileri tanısın
         RobotChassis[] allChassis =
             FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
 
@@ -318,7 +473,6 @@ public class MapGenerator : MonoBehaviour
             Debug.Log("[MapGenerator] RobotStatusUI şasi listesi güncellendi.");
         }
 
-        // Zırh seçim UI'ı da yeni şasileri tanısın
         ArmorSelectUI armorUI = FindFirstObjectByType<ArmorSelectUI>();
         if (armorUI != null)
         {
@@ -349,15 +503,9 @@ public class MapGenerator : MonoBehaviour
 
     private void ApplyColor(GameObject obj, Color color)
     {
+        // Materyaller StationVisuals'ta merkezi üretilir — RP uyumlu, önbellekli
         if (!obj.TryGetComponent<Renderer>(out Renderer rend)) return;
-
-        // URP projesi — Standard shader magenta olur, önce URP Lit dene
-        Shader shader = Shader.Find("Universal Render Pipeline/Lit");
-        if (shader == null) shader = Shader.Find("Standard");
-
-        Material mat = new Material(shader);
-        mat.color = color;
-        rend.material = mat;
+        rend.sharedMaterial = StationVisuals.GetMaterial(color);
     }
 
     private void MarkSceneDirty()
@@ -380,7 +528,7 @@ public class MapGenerator : MonoBehaviour
         Gizmos.DrawWireCube(c + new Vector3(tAC, 0f, 0f),
             new Vector3(garageWidth, 0.1f, garageDepth));
 
-        Gizmos.color = Color.yellow;
+        Gizmos.color = Color.gray;
         Gizmos.DrawWireCube(c,
             new Vector3(scrapyardWidth, 0.1f, garageDepth));
 

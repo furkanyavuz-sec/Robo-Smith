@@ -71,15 +71,28 @@ public class GameManager : MonoBehaviour
         }
         else if (scene.name == garageSceneName && currentPhase == GamePhase.GameOver)
         {
-            // Rematch: garaja dönüldü, hazırlığı baştan başlat
+            // Rematch / menüden yeni oyun: hazırlığı baştan başlat
             playerChassis = FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
-            MatchData.Instance?.Reset();
+
+            if (GameSettings.DifficultyChosen)
+                difficulty = GameSettings.SelectedDifficulty;
+
+            if (MatchData.Instance != null)
+            {
+                MatchData.Instance.Reset();
+                MatchData.Instance.SelectedDifficulty = difficulty;
+            }
+
             StartPreparation();
         }
     }
 
     private void Start()
     {
+        // Ana menüden zorluk seçildiyse Inspector değerini ezer
+        if (GameSettings.DifficultyChosen)
+            difficulty = GameSettings.SelectedDifficulty;
+
         // MatchData'yı hazırla
         if (MatchData.Instance != null)
         {

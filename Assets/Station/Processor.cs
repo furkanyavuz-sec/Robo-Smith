@@ -120,6 +120,7 @@ public class Processor : BaseStation
             Debug.LogError($"[Processor] '{activeRecipe?.recipeName}' tarifinin " +
                            $"outputPrefab'ı atanmamış!");
             currentState = State.Idle;
+            StationProgressBar.Hide(gameObject);
             return;
         }
 
@@ -131,6 +132,7 @@ public class Processor : BaseStation
         currentState = State.Ready;
         activeRecipe = null;
 
+        StationProgressBar.Hide(gameObject);
         Debug.Log("[Processor] İşlem tamamlandı. Ürün hazır.");
     }
 
@@ -154,7 +156,10 @@ public class Processor : BaseStation
         if (currentState != State.Processing) return;
 
         timer -= Time.deltaTime;
-        UpdateProgressVisual(1f - (timer / currentDuration));
+        float progress = 1f - (timer / currentDuration);
+
+        UpdateProgressVisual(progress);
+        StationProgressBar.Show(gameObject, progress, timer);
 
         if (timer <= 0f)
             FinishProcessing();

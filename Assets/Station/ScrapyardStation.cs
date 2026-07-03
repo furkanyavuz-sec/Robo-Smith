@@ -13,6 +13,9 @@ public class ScrapyardStation : BaseStation
     [SerializeField] private GameObject     itemPrefab;
     [SerializeField] private float          cooldown    = 5f;   // Rekabetçi kaynak — kısa cooldown
 
+    /// <summary>VisualThemeManager gövdeyi içerik rengine boyamak için okur.</summary>
+    public ItemType SupplyType => supplyType;
+
     private float lastPickupTime = -999f;
 
     public override bool CanInteract(PlayerInteraction player)

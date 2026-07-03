@@ -56,6 +56,9 @@ public class StationOrganizer : MonoBehaviour
         foreach (Processor p in FindObjectsByType<Processor>(FindObjectsSortMode.None))
             Rename(p.gameObject, "İşleme Masası", nameCounts);
 
+        foreach (AssemblyStation a in FindObjectsByType<AssemblyStation>(FindObjectsSortMode.None))
+            Rename(a.gameObject, "Montaj İstasyonu", nameCounts);
+
         foreach (PlasmaSource p in FindObjectsByType<PlasmaSource>(FindObjectsSortMode.None))
             Rename(p.gameObject, "Plazma Kaynağı", nameCounts);
 

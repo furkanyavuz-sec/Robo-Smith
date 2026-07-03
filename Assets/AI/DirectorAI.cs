@@ -174,6 +174,9 @@ public class DirectorAI : MonoBehaviour
     // Silahsız robot arenada saldıramaz — oyuncuyla aynı kurallarla donat
     EquipWeapons(sheet);
 
+    // Zorluğa bağlı modül: Easy hiç, Normal sadece son robot, Hard hepsi
+    MaybeEquipModule(sheet);
+
     // Director AI rastgele zırh seçer
     ArmorType randomArmor = (ArmorType)Random.Range(1, 5);
 
@@ -249,5 +252,29 @@ public class DirectorAI : MonoBehaviour
                 sheet.equippedWeapons[i].sourceItem == type)
                 return true;
         return false;
+    }
+
+    /// <summary>
+    /// Zorluğa bağlı modül takar:
+    /// Easy → hiç, Normal → sadece son robot, Hard → her robot.
+    /// </summary>
+    private void MaybeEquipModule(RobotStatSheet sheet)
+    {
+        Difficulty diff = MatchData.Instance != null
+                        ? MatchData.Instance.SelectedDifficulty
+                        : Difficulty.Normal;
+
+        bool give = diff switch
+        {
+            Difficulty.Easy   => false,
+            Difficulty.Normal => robotsBuilt >= maxRobots,  // Sadece son robot
+            Difficulty.Hard   => true,
+            _                 => false
+        };
+        if (!give) return;
+
+        sheet.equippedModule = (ModuleType)Random.Range(1, 4); // Repair/Overdrive/Targeting
+
+        //Debug.Log($"[DirectorAI] Rakip robota modül: {sheet.equippedModule}");
     }
 }

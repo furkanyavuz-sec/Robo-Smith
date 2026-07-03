@@ -114,7 +114,8 @@ public static class WeaponUpgradeSystem
     }
 
     /// <summary>
-    /// Silahı bir seviye yükseltir, statlarını günceller.
+    /// Malzemeyi silaha teslim eder. requiredAmount kadar malzeme birikince
+    /// seviye atlar. Dönüş: malzeme kabul edildi mi (item tüketilmeli mi).
     /// </summary>
     public static bool TryUpgrade(WeaponData weapon, ItemType incomingMaterial)
     {
@@ -133,7 +134,19 @@ public static class WeaponUpgradeSystem
             return false;
         }
 
-        // Upgrade uygula
+        // Malzemeyi say — yeterli birikmediyse seviye atlama, ama item tüketilir
+        weapon.upgradeProgress++;
+        if (weapon.upgradeProgress < next.requiredAmount)
+        {
+            Debug.Log($"<color=yellow>[Upgrade] {weapon.weaponName} " +
+                      $"Lv{weapon.upgradeLevel + 1}: " +
+                      $"{weapon.upgradeProgress}/{next.requiredAmount} " +
+                      $"{next.requiredMaterial} teslim edildi.</color>");
+            return true;
+        }
+
+        // Yeterli malzeme birikti — seviye atla
+        weapon.upgradeProgress = 0;
         weapon.damage         += next.damageBonus;
         weapon.attackCooldown  = Mathf.Max(0.2f,
                                  weapon.attackCooldown - next.cooldownReduction);

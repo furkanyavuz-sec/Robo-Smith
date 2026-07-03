@@ -25,6 +25,11 @@ public enum ItemType
     Rocket,         // Roket   — AOE hasar
     Shield,         // Kalkan  — DEF + hasar yansıtma
     EMP,            // EMP     — Düşman robotunu yavaşlatır (Debuff)
+
+    // ── Modüller (AssemblyStation çıktısı — 2 farklı işlenmiş üründen) ──
+    RepairModule,       // Plaka + Çip     → arenada saniyede HP yeniler
+    OverdriveModule,    // Plaka + Plazma  → düşük HP'de hasar artar
+    TargetingComputer,  // Plazma + Çip    → bekleme süresi ↓, menzil ↑
 }
 
 // Item'ın hangi kategoriye girdiğini hızlıca sorgulamak için
@@ -53,4 +58,9 @@ public static class ItemTypeExtensions
         t == ItemType.SteelPlate ||
         t == ItemType.PlasmaCore ||
         t == ItemType.Microchip;
+
+    public static bool IsModule(this ItemType t) =>
+        t == ItemType.RepairModule     ||
+        t == ItemType.OverdriveModule  ||
+        t == ItemType.TargetingComputer;
 }

@@ -44,9 +44,10 @@ public class BattleRobot : MonoBehaviour
     // Silah cooldown takibi
     private Dictionary<WeaponData, float> lastAttackTimes = new();
 
-    // Renk
+    // Renk — Built-in "_Color", URP Lit "_BaseColor" okur; ikisi de set edilir
     private MaterialPropertyBlock propBlock;
-    private static readonly int   PropColor = Shader.PropertyToID("_Color");
+    private static readonly int   PropColor     = Shader.PropertyToID("_Color");
+    private static readonly int   PropBaseColor = Shader.PropertyToID("_BaseColor");
     private Coroutine             flashCoroutine;
 
     public bool      IsDead    => currentHP <= 0;
@@ -60,6 +61,10 @@ public class BattleRobot : MonoBehaviour
     private TacticalPositioner positioner;
     private WeaponBehavior     weaponBehavior;
 
+    // Modül sistemi
+    private ModuleType equippedModule = ModuleType.None;
+    private float      repairAccumulator;
+
     // ── Başlatma ─────────────────────────────────────────────────────────
 
     public void Initialize(RobotStatSheet sheet, ArmorType armor, int teamId)
@@ -70,6 +75,21 @@ public class BattleRobot : MonoBehaviour
 
         maxHP      = Mathf.Max(sheet.HP, 1);
         currentHP  = maxHP;
+
+        // Modül: Hedefleme Bilgisayarı silah statlarını kalıcı iyileştirir
+        equippedModule = sheet.equippedModule;
+        if (equippedModule == ModuleType.Targeting)
+        {
+            foreach (WeaponData w in sheet.equippedWeapons)
+            {
+                if (w == null) continue;
+                w.attackCooldown *= ModuleCatalog.TargetingCooldownMult;
+                w.effectiveRange *= ModuleCatalog.TargetingRangeMult;
+            }
+        }
+        if (equippedModule != ModuleType.None)
+            Debug.Log($"[BattleRobot] Takım {teamId} modül: " +
+                      $"{ModuleCatalog.TrName(equippedModule)}");
 
         // SPD statı hareket hızına yansır: her 100 SPD = +%20 hız
         float spdMultiplier = 1f + sheet.SPD / 500f;
@@ -108,6 +128,19 @@ public class BattleRobot : MonoBehaviour
     private void Update()
 {
     if (IsDead) return;
+
+    // Onarım Modülü: EMP'de bile çalışan pasif yenilenme
+    if (equippedModule == ModuleType.Repair && currentHP < maxHP)
+    {
+        repairAccumulator += ModuleCatalog.RepairPerSecond * Time.deltaTime;
+        if (repairAccumulator >= 1f)
+        {
+            int whole = Mathf.FloorToInt(repairAccumulator);
+            repairAccumulator -= whole;
+            Heal(whole);
+        }
+    }
+
     if (empEffect != null && empEffect.IsFrozen) return;
 
     // Hedef seçimini TargetSelector'a bırak
@@ -519,7 +552,13 @@ public class BattleRobot : MonoBehaviour
         // (Plazma çekirdeği taşımanın arenadaki karşılığı)
         float atkMult = statSheet != null ? 1f + statSheet.ATK / 500f : 1f;
 
-        return Mathf.RoundToInt(weapon.damage * atkMult * overtimeMult);
+        // Aşırı Yükleme Modülü: HP eşiğin altındaysa öfke hasarı
+        float overdriveMult = 1f;
+        if (equippedModule == ModuleType.Overdrive &&
+            (float)currentHP / maxHP < ModuleCatalog.OverdriveThreshold)
+            overdriveMult = 1f + ModuleCatalog.OverdriveBonus;
+
+        return Mathf.RoundToInt(weapon.damage * atkMult * overdriveMult * overtimeMult);
     }
 
     public bool IsWeaponReady(WeaponData weapon)
@@ -554,7 +593,8 @@ public class BattleRobot : MonoBehaviour
         Color c     = Color.Lerp(Color.red, new Color(0.2f, 0.6f, 1f), ratio);
 
         bodyRenderer.GetPropertyBlock(propBlock);
-        propBlock.SetColor(PropColor, c);
+        propBlock.SetColor(PropColor,     c);
+        propBlock.SetColor(PropBaseColor, c);
         bodyRenderer.SetPropertyBlock(propBlock);
     }
 
@@ -568,7 +608,8 @@ public class BattleRobot : MonoBehaviour
     {
         if (bodyRenderer == null) yield break;
         bodyRenderer.GetPropertyBlock(propBlock);
-        propBlock.SetColor(PropColor, color);
+        propBlock.SetColor(PropColor,     color);
+        propBlock.SetColor(PropBaseColor, color);
         bodyRenderer.SetPropertyBlock(propBlock);
         if (duration > 0f)
         {

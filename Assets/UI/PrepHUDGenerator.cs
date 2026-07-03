@@ -64,13 +64,13 @@ public class PrepHUDGenerator : MonoBehaviour
             new Vector2(0f, 1f), new Vector2(12, -12), new Vector2(390, 340),
             UIFactory.PanelBG);
 
-        // Başlık şeridi
+        // Başlık şeridi — hangi şasinin gösterildiğini yazar
         GameObject header = UIFactory.CreatePanel("Header", panel.transform,
             new Vector2(0.5f, 1f), Vector2.zero, new Vector2(390, 38),
             UIFactory.HeaderBlue);
-        UIFactory.CreateText("HeaderText", header.transform,
+        TextMeshProUGUI headerText = UIFactory.CreateText("HeaderText", header.transform,
             new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380, 38),
-            "ROBOT DURUMU", 19, FontStyles.Bold, UIFactory.TextMain);
+            "ROBOT DURUMU", 17, FontStyles.Bold, UIFactory.TextMain);
 
         // Stat 2x2 ızgara — her stat kendi renginde
         TextMeshProUGUI hp  = StatText(panel, "HPText",  new Vector2(20,  -52), UIFactory.StatHP,  "HP:  0");
@@ -120,6 +120,7 @@ public class PrepHUDGenerator : MonoBehaviour
         UIFactory.SetField(ui, "weaponSlotTexts", slots);
         UIFactory.SetField(ui, "synergyText",     synergy);
         UIFactory.SetField(ui, "armorText",       armor);
+        UIFactory.SetField(ui, "headerText",      headerText);
 
         // Sahnedeki şasileri otomatik bul ve bağla
         RobotChassis[] chassis =

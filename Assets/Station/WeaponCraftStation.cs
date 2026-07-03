@@ -15,6 +15,9 @@ public class WeaponCraftStation : BaseStation
     [SerializeField] private GameObject outputPrefab;
     [SerializeField] private float      craftDuration = 5f;
 
+    /// <summary>VisualThemeManager gövdeyi silah rengine boyamak için okur.</summary>
+    public ItemType OutputWeapon => outputWeaponType;
+
     [Header("Görsel")]
     [SerializeField] private Transform  displayPoint;
     [SerializeField] private Renderer   progressRenderer;
@@ -91,6 +94,7 @@ public class WeaponCraftStation : BaseStation
             item.SetType(outputWeaponType);
 
         state = State.Ready;
+        StationProgressBar.Hide(gameObject);
         Debug.Log($"[WeaponCraft] {outputWeaponType} hazır!");
     }
 
@@ -111,12 +115,12 @@ public class WeaponCraftStation : BaseStation
         if (state != State.Crafting) return;
 
         timer -= Time.deltaTime;
+        float p = 1f - (timer / craftDuration);
 
         if (progressRenderer != null)
-        {
-            float p = 1f - (timer / craftDuration);
             progressRenderer.material.color = Color.Lerp(Color.yellow, Color.green, p);
-        }
+
+        StationProgressBar.Show(gameObject, p, timer);
 
         if (timer <= 0f) FinishCrafting();
     }

@@ -18,6 +18,7 @@ public class WeaponData
     public float      reflectRatio     = 0f;
     public GameObject projectilePrefab = null;
     public int        upgradeLevel     = 0;
+    public int        upgradeProgress  = 0;   // Sonraki seviye için teslim edilen malzeme
 
     public const int MAX_UPGRADE = 5;
     public bool   IsMaxLevel     => upgradeLevel >= MAX_UPGRADE;

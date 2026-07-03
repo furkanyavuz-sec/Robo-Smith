@@ -43,11 +43,15 @@ public class ChassisInteractUI : MonoBehaviour
         if (eLabel != null)
         {
             eLabel.gameObject.SetActive(canArmor);
-            eLabel.text = player.HeldObject != null &&
-                          player.HeldObject.TryGetComponent<PickupItem>(out PickupItem i)
-                          && i.Type.IsWeapon()
-                        ? "E: Silah Tak"
-                        : "E: Zırha Ekle";
+
+            string text = "E: Zırha Ekle";
+            if (player.HeldObject != null &&
+                player.HeldObject.TryGetComponent<PickupItem>(out PickupItem i))
+            {
+                if      (i.Type.IsWeapon()) text = "E: Silah Tak";
+                else if (i.Type.IsModule()) text = "E: Modül Tak";
+            }
+            eLabel.text = text;
         }
 
         if (qLabel != null)
@@ -77,7 +81,10 @@ public class ChassisInteractUI : MonoBehaviour
 
             UpgradeLevel next = WeaponUpgradeSystem.GetNextLevel(w);
             if (next != null && next.requiredMaterial == item.Type)
-                return $"Q: {w.weaponName} → Lv{w.upgradeLevel + 1}";
+                return next.requiredAmount > 1
+                    ? $"Q: {w.weaponName} → Lv{w.upgradeLevel + 1} " +
+                      $"({w.upgradeProgress + 1}/{next.requiredAmount})"
+                    : $"Q: {w.weaponName} → Lv{w.upgradeLevel + 1}";
         }
 
         return "Q: Silahı Geliştir";

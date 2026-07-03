@@ -52,6 +52,10 @@ public class RobotChassis : BaseStation
         if (item.Type.IsWeapon())
             return statSheet.weaponCount < maxWeaponSlots;
 
+        // Modül — yuva boşsa kabul (robot başına 1 modül)
+        if (item.Type.IsModule())
+            return statSheet.equippedModule == ModuleType.None;
+
         return false;
     }
 
@@ -70,6 +74,10 @@ public class RobotChassis : BaseStation
         {
             InstallWeapon(item.Type);
         }
+        else if (item.Type.IsModule())
+        {
+            InstallModule(item.Type);
+        }
         else if (item.Type.IsProcessed())
         {
             // Önce upgrade dene, olmuyorsa stat olarak ekle
@@ -81,6 +89,13 @@ public class RobotChassis : BaseStation
         Debug.Log($"[RobotChassis] → {statSheet}");
     }
 
+    private void InstallModule(ItemType type)
+    {
+        statSheet.equippedModule = ModuleCatalog.FromItem(type);
+        Debug.Log($"<color=cyan>🔧 {ModuleCatalog.TrName(statSheet.equippedModule)} " +
+                  $"takıldı! ({ModuleCatalog.Description(statSheet.equippedModule)})</color>");
+    }
+
 // ── Bunları ekle ────────────────────────────────────────────────────────
 
 public bool CanInteractArmor(PlayerInteraction player)
@@ -90,6 +105,7 @@ public bool CanInteractArmor(PlayerInteraction player)
         return false;
 
     if (item.Type.IsWeapon())    return statSheet.weaponCount < maxWeaponSlots;
+    if (item.Type.IsModule())    return statSheet.equippedModule == ModuleType.None;
     if (item.Type.IsProcessed()) return CanInstallStatPart(item.Type);
     return false;
 }
@@ -118,8 +134,9 @@ public void InteractWithMode(PlayerInteraction player, InteractMode mode)
             player.ForceDropFromStation();
             Destroy(obj);
 
-            if (item.Type.IsWeapon()) InstallWeapon(item.Type);
-            else                      InstallStatPart(item.Type);
+            if      (item.Type.IsWeapon()) InstallWeapon(item.Type);
+            else if (item.Type.IsModule()) InstallModule(item.Type);
+            else                           InstallStatPart(item.Type);
             break;
 
         case InteractMode.UpgradeWeapon:

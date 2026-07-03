@@ -13,6 +13,9 @@ public class SupplyBin : BaseStation
     [SerializeField] private GameObject itemPrefab;     // Spawn edilecek prefab
     [SerializeField] private float respawnCooldown = 1f; // Saniye — spam önleme
 
+    /// <summary>VisualThemeManager gövdeyi içerik rengine boyamak için okur.</summary>
+    public ItemType SupplyType => supplyItemType;
+
     private float lastSupplyTime = -999f;
 
     public override bool CanInteract(PlayerInteraction player)

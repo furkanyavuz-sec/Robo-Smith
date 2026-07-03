@@ -23,6 +23,7 @@ public class InteractPromptUI : MonoBehaviour
     [SerializeField] private Color chassisColor     = new Color(0.2f,  0.6f,  1f,    0.8f);
     [SerializeField] private Color scrapyardColor   = new Color(0.8f,  0.7f,  0.1f,  0.8f);
     [SerializeField] private Color weaponCraftColor = new Color(0.8f,  0.2f,  0.8f,  0.8f);
+    [SerializeField] private Color assemblyColor    = new Color(0.55f, 0.25f, 0.95f, 0.8f);
 
     private void Start()
     {
@@ -126,6 +127,7 @@ public class InteractPromptUI : MonoBehaviour
                     player.HeldObject.TryGetComponent<PickupItem>(out PickupItem item))
                 {
                     ePrompt = item.Type.IsWeapon()    ? "E: Silah Tak"  :
+                              item.Type.IsModule()    ? "E: Modül Tak"  :
                               item.Type.IsProcessed() ? "E: Zırha Ekle" : "";
                     qPrompt = c.CanInteractUpgrade(player)
                             ? ChassisInteractUI.UpgradePromptText(c, player)
@@ -143,6 +145,12 @@ public class InteractPromptUI : MonoBehaviour
                 stationName = "Silah Atölyesi";
                 bgColor     = weaponCraftColor;
                 ePrompt     = player.HeldObject != null ? "E: Üret" : "E: Al";
+                break;
+
+            case AssemblyStation assembly:
+                stationName = "Montaj İstasyonu";
+                bgColor     = assemblyColor;
+                ePrompt     = assembly.GetPromptText(player);
                 break;
 
             default:

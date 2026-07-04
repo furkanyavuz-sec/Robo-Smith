@@ -20,11 +20,11 @@ public class DroneAIPilot : MonoBehaviour
     private static PilotTuning GetTuning(Difficulty d) => d switch
     {
         Difficulty.Easy => new PilotTuning
-            { speed = 3.2f, reactDelay = 6f, intercepts = false },
+            { speed = 4.0f, reactDelay = 6f, intercepts = false },
         Difficulty.Hard => new PilotTuning
-            { speed = 6.0f, reactDelay = 1f, intercepts = true },
+            { speed = 7.2f, reactDelay = 1f, intercepts = true },
         _ => new PilotTuning   // Normal
-            { speed = 4.6f, reactDelay = 2.5f, intercepts = false },
+            { speed = 5.6f, reactDelay = 2.5f, intercepts = false },
     };
 
     private SupplyDrone drone;

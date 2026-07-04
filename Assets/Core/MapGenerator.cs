@@ -35,10 +35,13 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private Color crateGray    = new Color(0.28f, 0.28f, 0.30f);
     [SerializeField] private Color wallTone     = new Color(0.19f, 0.19f, 0.21f);
 
+    // ── Çekirdek Bölge boyutları (KOD İÇİNDE — tek denge noktası) ────────
+    // Inspector'daki eski seri değerler haritayı etkilemesin diye sabit.
+    private const float CoreZoneGap   = 3f;    // Ön duvar → platform boşluğu
+    private const float CoreZoneWidth = 18f;
+    private const float CoreZoneDepth = 13f;
+
     [Header("Çekirdek Bölge (Drone Raid)")]
-    [SerializeField] private float coreZoneGap   = 3f;    // Ön duvar → platform boşluğu
-    [SerializeField] private float coreZoneWidth = 14f;
-    [SerializeField] private float coreZoneDepth = 10f;
     [SerializeField] private Color barrierColor  = new Color(0.95f, 0.30f, 0.20f);
     [SerializeField] private Color coreAccent    = new Color(0.20f, 0.85f, 0.90f);
 
@@ -351,7 +354,7 @@ public class MapGenerator : MonoBehaviour
     private void BuildDroneRaidZone()
     {
         float halfD   = garageDepth / 2f;
-        float coreZ   = halfD + coreZoneGap + coreZoneDepth / 2f;
+        float coreZ   = halfD + CoreZoneGap + CoreZoneDepth / 2f;
         Vector3 center = new Vector3(0f, 0f, coreZ);
 
         // Platform zemini
@@ -359,37 +362,37 @@ public class MapGenerator : MonoBehaviour
         floor.name = "Çekirdek Platform Zemini";
         floor.transform.SetParent(transform);
         floor.transform.position   = MapPos(new Vector3(0f, -0.5f, coreZ));
-        floor.transform.localScale = new Vector3(coreZoneWidth, 1f, coreZoneDepth);
+        floor.transform.localScale = new Vector3(CoreZoneWidth, 1f, CoreZoneDepth);
         ApplyColor(floor, neutralFloor);
 
         // Neon çerçeve + köşe direkleri — çekirdek bölge kimliği
         CreatePad("Çekirdek Çerçeve (ön)",
-            new Vector3(0f, 0f, coreZ + coreZoneDepth / 2f - 0.4f),
-            new Vector2(coreZoneWidth - 0.6f, 0.35f), coreAccent);
+            new Vector3(0f, 0f, coreZ + CoreZoneDepth / 2f - 0.4f),
+            new Vector2(CoreZoneWidth - 0.6f, 0.35f), coreAccent);
         CreatePad("Çekirdek Çerçeve (arka)",
-            new Vector3(0f, 0f, coreZ - coreZoneDepth / 2f + 0.4f),
-            new Vector2(coreZoneWidth - 0.6f, 0.35f), coreAccent);
+            new Vector3(0f, 0f, coreZ - CoreZoneDepth / 2f + 0.4f),
+            new Vector2(CoreZoneWidth - 0.6f, 0.35f), coreAccent);
         CreatePad("Çekirdek Çerçeve (sol)",
-            new Vector3(-coreZoneWidth / 2f + 0.4f, 0f, coreZ),
-            new Vector2(0.35f, coreZoneDepth - 0.6f), coreAccent);
+            new Vector3(-CoreZoneWidth / 2f + 0.4f, 0f, coreZ),
+            new Vector2(0.35f, CoreZoneDepth - 0.6f), coreAccent);
         CreatePad("Çekirdek Çerçeve (sağ)",
-            new Vector3(coreZoneWidth / 2f - 0.4f, 0f, coreZ),
-            new Vector2(0.35f, coreZoneDepth - 0.6f), coreAccent);
+            new Vector3(CoreZoneWidth / 2f - 0.4f, 0f, coreZ),
+            new Vector2(0.35f, CoreZoneDepth - 0.6f), coreAccent);
 
         // Enerji bariyerleri — kapalıyken platformu çevreler, açılınca gömülür
         Transform[] barriers = new Transform[4];
         barriers[0] = CreateBarrier("Bariyer (ön)",
-            new Vector3(0f, 0f, coreZ + coreZoneDepth / 2f),
-            new Vector3(coreZoneWidth, 6f, 0.3f));
+            new Vector3(0f, 0f, coreZ + CoreZoneDepth / 2f),
+            new Vector3(CoreZoneWidth, 6f, 0.3f));
         barriers[1] = CreateBarrier("Bariyer (arka)",
-            new Vector3(0f, 0f, coreZ - coreZoneDepth / 2f),
-            new Vector3(coreZoneWidth, 6f, 0.3f));
+            new Vector3(0f, 0f, coreZ - CoreZoneDepth / 2f),
+            new Vector3(CoreZoneWidth, 6f, 0.3f));
         barriers[2] = CreateBarrier("Bariyer (sol)",
-            new Vector3(-coreZoneWidth / 2f, 0f, coreZ),
-            new Vector3(0.3f, 6f, coreZoneDepth));
+            new Vector3(-CoreZoneWidth / 2f, 0f, coreZ),
+            new Vector3(0.3f, 6f, CoreZoneDepth));
         barriers[3] = CreateBarrier("Bariyer (sağ)",
-            new Vector3(coreZoneWidth / 2f, 0f, coreZ),
-            new Vector3(0.3f, 6f, coreZoneDepth));
+            new Vector3(CoreZoneWidth / 2f, 0f, coreZ),
+            new Vector3(0.3f, 6f, CoreZoneDepth));
 
         // Zone yöneticisi + kablolar
         GameObject zoneObj = new GameObject("Çekirdek Bölge");
@@ -398,7 +401,7 @@ public class MapGenerator : MonoBehaviour
 
         DroneRaidZone zone = zoneObj.AddComponent<DroneRaidZone>();
         Configure(zone, "platformCenter", MapPos(center));
-        Configure(zone, "platformSize",   new Vector2(coreZoneWidth, coreZoneDepth));
+        Configure(zone, "platformSize",   new Vector2(CoreZoneWidth, CoreZoneDepth));
         Configure(zone, "mapEdgeZ",       transform.position.z + halfD);
         Configure(zone, "barriers",       barriers);
         Configure(zone, "blueDrone",      blueDrone);
@@ -412,7 +415,7 @@ public class MapGenerator : MonoBehaviour
             transform.position.x + mapLeft  + 1f,
             transform.position.x + mapRight - 1f,
             transform.position.z - halfD + 1f,
-            transform.position.z + coreZ + coreZoneDepth / 2f - 0.5f);
+            transform.position.z + coreZ + CoreZoneDepth / 2f - 0.5f);
         Configure(blueDrone, "flightBounds", bounds);
         Configure(redDrone,  "flightBounds", bounds);
     }

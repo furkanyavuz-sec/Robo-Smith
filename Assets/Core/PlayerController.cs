@@ -11,7 +11,7 @@ using UnityEngine.InputSystem;   // ← Yeni paket namespace'i
 public class PlayerController : NetworkBehaviour
 {
     [Header("Hareket Ayarları")]
-    [SerializeField] private float moveSpeed = 5f;
+    [SerializeField] private float moveSpeed = 6.5f;
     [SerializeField] private float rotationSpeed = 720f;
 
     private Rigidbody rb;

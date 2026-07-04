@@ -15,7 +15,7 @@ public class SupplyDrone : MonoBehaviour
     public enum DroneMode { Docked, Piloted, AI, Returning }
 
     [Header("Uçuş Ayarları")]
-    [SerializeField] private float pilotSpeed = 7f;
+    [SerializeField] private float pilotSpeed = 8.5f;
     [SerializeField] private float flyHeight  = 4.2f;
     [SerializeField] private float turnSpeed  = 540f;
 

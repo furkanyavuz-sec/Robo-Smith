@@ -227,6 +227,37 @@ public class DirectorAI : MonoBehaviour
     }
 }
 
+    // ── Drone Teslimatı ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// Kırmızı drone çekirdek bölgeden ödül getirince SupplyDrone çağırır.
+    /// İşlenmiş ürün, oyuncudaki karşılığıyla aynı bantta (+40) stat verir.
+    /// Robotlar dolmuşsa teslimat boşa gider — oyuncuyla simetrik değil ama
+    /// pencereler (2/5/8. dk) üretim bitmeden gelir, pratikte nadir.
+    /// </summary>
+    public void ReceiveDroneReward(ItemType type)
+    {
+        const int DRONE_REWARD_STAT = 40;   // Oyuncu işlenmiş ürünü: 30-50 arası
+
+        if (robotsBuilt >= maxRobots) return;
+
+        switch (type)
+        {
+            case ItemType.SteelPlate:
+                currentRobotStats.maxHP       += DRONE_REWARD_STAT; break;
+            case ItemType.PlasmaCore:
+                currentRobotStats.attackPower += DRONE_REWARD_STAT; break;
+            case ItemType.Microchip:
+                currentRobotStats.moveSpeed   += DRONE_REWARD_STAT; break;
+            default:
+                return;
+        }
+
+        TryCompleteRobot();
+
+        Debug.Log($"[DirectorAI] 🛸 Drone teslimatı işlendi: {type} (+{DRONE_REWARD_STAT})");
+    }
+
     // ── Silah Donanımı ───────────────────────────────────────────────────
 
     private static readonly ItemType[] offensiveWeapons =

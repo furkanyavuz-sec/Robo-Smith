@@ -35,6 +35,13 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private Color crateGray    = new Color(0.28f, 0.28f, 0.30f);
     [SerializeField] private Color wallTone     = new Color(0.19f, 0.19f, 0.21f);
 
+    [Header("Çekirdek Bölge (Drone Raid)")]
+    [SerializeField] private float coreZoneGap   = 3f;    // Ön duvar → platform boşluğu
+    [SerializeField] private float coreZoneWidth = 14f;
+    [SerializeField] private float coreZoneDepth = 10f;
+    [SerializeField] private Color barrierColor  = new Color(0.95f, 0.30f, 0.20f);
+    [SerializeField] private Color coreAccent    = new Color(0.20f, 0.85f, 0.90f);
+
     [Header("İstasyon Prefabları")]
     [SerializeField] private GameObject supplyBinPrefab;
     [SerializeField] private GameObject processorPrefab;
@@ -48,6 +55,10 @@ public class MapGenerator : MonoBehaviour
     private float totalWidth;
     private float teamACenter;
     private float teamBCenter;
+
+    // Üretim sırasında toplanan drone referansları (zone kablolaması için)
+    private SupplyDrone blueDrone;
+    private SupplyDrone redDrone;
 
     [ContextMenu("Generate Map")]
     public void GenerateMap()
@@ -70,6 +81,9 @@ public class MapGenerator : MonoBehaviour
             blueAccent, out Transform blueSpawn);
         BuildGarage(teamBCenter, +1, "Kırmızı", redAccent, out Transform _);
         BuildScrapyard();
+
+        // Çekirdek bölge: ön duvarın ötesinde, sadece drone'la ulaşılan platform
+        BuildDroneRaidZone();
 
         WireSceneReferences(blueChassis, blueSpawn);
         WarnAboutOrphanStations();
@@ -134,6 +148,11 @@ public class MapGenerator : MonoBehaviour
                     $"Robot Şasisi {i + 1}", accent);
             }
         }
+
+        // ── Drone rıhtımı: konsol + park pedi + drone ───────────────────
+        SupplyDrone drone = BuildDroneDock(centerX, sign, zone, accent);
+        if (sign < 0) blueDrone = drone;
+        else          redDrone  = drone;
 
         // ── Spawn noktası + ped ─────────────────────────────────────────
         GameObject spawn = new GameObject($"PlayerSpawn [{zone}]");
@@ -276,6 +295,143 @@ public class MapGenerator : MonoBehaviour
         AssemblyStation assembly = obj.AddComponent<AssemblyStation>();
         TryAssignPrefab(assembly, "outputPrefab", "PlasmaCore_Prefab");
         StationVisuals.DecorateAssembly(obj);
+    }
+
+    // ── Drone Rıhtımı & Çekirdek Bölge ───────────────────────────────────
+
+    /// <summary>
+    /// Drone Konsolu için ayrı prefab yok — SupplyBin prefabını klonlayıp
+    /// bileşenini DroneConsole ile değiştiririz (Montaj İstasyonu deseni).
+    /// Yanına park pedi + prosedürel drone kurulur.
+    /// </summary>
+    private SupplyDrone BuildDroneDock(float centerX, int sign, string zone,
+        Color accent)
+    {
+        Vector3 consolePos = new Vector3(centerX - sign * 5f, 0f, 7f);
+        Vector3 padPos     = new Vector3(centerX - sign * 5f, 0f, 8.6f);
+
+        // Konsol istasyonu
+        SupplyBin temp = Place<SupplyBin>(supplyBinPrefab,
+            $"Drone Konsolu [{zone}]", consolePos);
+        DroneConsole console = null;
+        if (temp != null)
+        {
+            GameObject obj = temp.gameObject;
+            if (Application.isPlaying) Destroy(temp);
+            else                       DestroyImmediate(temp);
+
+            console = obj.AddComponent<DroneConsole>();
+            StationVisuals.DecorateDroneConsole(obj, accent);
+        }
+
+        // Park pedi
+        CreatePad($"Drone Pedi [{zone}]", padPos, new Vector2(2f, 2f), accent);
+
+        // Drone — prefabsız, görselini kendi kurar
+        GameObject droneObj = new GameObject($"Tedarik Drone [{zone}]");
+        droneObj.transform.SetParent(transform);
+        droneObj.transform.position = MapPos(padPos) + Vector3.up * 0.9f;
+
+        SupplyDrone drone = droneObj.AddComponent<SupplyDrone>();
+        Configure(drone, "isPlayerTeam", sign < 0);
+        Configure(drone, "homePosition", MapPos(padPos));
+        drone.BuildVisual();
+
+        // Kırmızı drone'u AI sürer
+        if (sign > 0) droneObj.AddComponent<DroneAIPilot>();
+
+        if (console != null) Configure(console, "drone", drone);
+        return drone;
+    }
+
+    /// <summary>
+    /// Ön duvarın ötesinde uçarak ulaşılan ödül platformu + bariyerler +
+    /// DroneRaidZone yöneticisi. Oyuncu yürüyerek giremez (duvar + boşluk).
+    /// </summary>
+    private void BuildDroneRaidZone()
+    {
+        float halfD   = garageDepth / 2f;
+        float coreZ   = halfD + coreZoneGap + coreZoneDepth / 2f;
+        Vector3 center = new Vector3(0f, 0f, coreZ);
+
+        // Platform zemini
+        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        floor.name = "Çekirdek Platform Zemini";
+        floor.transform.SetParent(transform);
+        floor.transform.position   = MapPos(new Vector3(0f, -0.5f, coreZ));
+        floor.transform.localScale = new Vector3(coreZoneWidth, 1f, coreZoneDepth);
+        ApplyColor(floor, neutralFloor);
+
+        // Neon çerçeve + köşe direkleri — çekirdek bölge kimliği
+        CreatePad("Çekirdek Çerçeve (ön)",
+            new Vector3(0f, 0f, coreZ + coreZoneDepth / 2f - 0.4f),
+            new Vector2(coreZoneWidth - 0.6f, 0.35f), coreAccent);
+        CreatePad("Çekirdek Çerçeve (arka)",
+            new Vector3(0f, 0f, coreZ - coreZoneDepth / 2f + 0.4f),
+            new Vector2(coreZoneWidth - 0.6f, 0.35f), coreAccent);
+        CreatePad("Çekirdek Çerçeve (sol)",
+            new Vector3(-coreZoneWidth / 2f + 0.4f, 0f, coreZ),
+            new Vector2(0.35f, coreZoneDepth - 0.6f), coreAccent);
+        CreatePad("Çekirdek Çerçeve (sağ)",
+            new Vector3(coreZoneWidth / 2f - 0.4f, 0f, coreZ),
+            new Vector2(0.35f, coreZoneDepth - 0.6f), coreAccent);
+
+        // Enerji bariyerleri — kapalıyken platformu çevreler, açılınca gömülür
+        Transform[] barriers = new Transform[4];
+        barriers[0] = CreateBarrier("Bariyer (ön)",
+            new Vector3(0f, 0f, coreZ + coreZoneDepth / 2f),
+            new Vector3(coreZoneWidth, 6f, 0.3f));
+        barriers[1] = CreateBarrier("Bariyer (arka)",
+            new Vector3(0f, 0f, coreZ - coreZoneDepth / 2f),
+            new Vector3(coreZoneWidth, 6f, 0.3f));
+        barriers[2] = CreateBarrier("Bariyer (sol)",
+            new Vector3(-coreZoneWidth / 2f, 0f, coreZ),
+            new Vector3(0.3f, 6f, coreZoneDepth));
+        barriers[3] = CreateBarrier("Bariyer (sağ)",
+            new Vector3(coreZoneWidth / 2f, 0f, coreZ),
+            new Vector3(0.3f, 6f, coreZoneDepth));
+
+        // Zone yöneticisi + kablolar
+        GameObject zoneObj = new GameObject("Çekirdek Bölge");
+        zoneObj.transform.SetParent(transform);
+        zoneObj.transform.position = MapPos(center);
+
+        DroneRaidZone zone = zoneObj.AddComponent<DroneRaidZone>();
+        Configure(zone, "platformCenter", MapPos(center));
+        Configure(zone, "platformSize",   new Vector2(coreZoneWidth, coreZoneDepth));
+        Configure(zone, "mapEdgeZ",       transform.position.z + halfD);
+        Configure(zone, "barriers",       barriers);
+        Configure(zone, "blueDrone",      blueDrone);
+        Configure(zone, "redDrone",       redDrone);
+        TryAssignPrefab(zone, "itemPrefab", "PlasmaCore_Prefab");
+
+        // Drone uçuş sınırları (dünya koordinatı): tüm harita + platform
+        float mapLeft  = teamACenter - garageWidth / 2f;
+        float mapRight = teamBCenter + garageWidth / 2f;
+        Vector4 bounds = new Vector4(
+            transform.position.x + mapLeft  + 1f,
+            transform.position.x + mapRight - 1f,
+            transform.position.z - halfD + 1f,
+            transform.position.z + coreZ + coreZoneDepth / 2f - 0.5f);
+        Configure(blueDrone, "flightBounds", bounds);
+        Configure(redDrone,  "flightBounds", bounds);
+    }
+
+    /// <summary>Yüksek enerji duvarı — DroneRaidZone açılınca gömer.</summary>
+    private Transform CreateBarrier(string barrierName, Vector3 pos, Vector3 scale)
+    {
+        GameObject barrier = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        barrier.name = barrierName;
+        barrier.transform.SetParent(transform);
+        barrier.transform.position   = MapPos(new Vector3(pos.x, scale.y / 2f, pos.z));
+        barrier.transform.localScale = scale;
+
+        // Bariyer görsel + mantık DroneRaidZone.MaxAllowedZ'de — fiziği yok
+        if (barrier.TryGetComponent<Collider>(out Collider col))
+            DestroyImmediate(col);
+
+        ApplyColor(barrier, barrierColor);
+        return barrier.transform;
     }
 
     private void BuildWeaponCraft(Vector3 pos, ItemType input, ItemType output,

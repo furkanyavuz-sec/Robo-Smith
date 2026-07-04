@@ -232,6 +232,31 @@ public static class StationVisuals
     // ── Yapı Taşları ─────────────────────────────────────────────────────
 
     /// <summary>Neon taban halkası — istasyonun altında parlayan ince plaka.</summary>
+    /// <summary>Drone Konsolu — takım renginde çerçeve + anten + etiket.</summary>
+    public static void DecorateDroneConsole(GameObject station, Color teamAccent)
+    {
+        if (station == null) return;
+
+        // Anten — konsol kimliği (drone'la haberleşme hissi)
+        Primitive(station, PrimitiveType.Cylinder,
+            new Vector3(-0.32f, 1.55f, -0.32f),
+            new Vector3(0.05f, 0.55f, 0.05f), teamAccent);
+        Primitive(station, PrimitiveType.Sphere,
+            new Vector3(-0.32f, 2.15f, -0.32f),
+            Vector3.one * 0.16f, Color.Lerp(teamAccent, Color.white, 0.4f));
+
+        // Ekran — hafif eğik holo panel
+        Primitive(station, PrimitiveType.Cube,
+            new Vector3(0f, 1.25f, 0.10f),
+            new Vector3(0.75f, 0.45f, 0.06f), teamAccent * 0.9f,
+            new Vector3(-25f, 0f, 0f));
+
+        AddTechFrame(station, teamAccent);
+        AddUnderGlow(station, teamAccent);
+        AddLabel(station,
+            "Drone Konsolu\n<size=70%>Çekirdek Bölge [E]</size>", teamAccent);
+    }
+
     public static void AddUnderGlow(GameObject station, Color color)
     {
         Primitive(station, PrimitiveType.Cube,

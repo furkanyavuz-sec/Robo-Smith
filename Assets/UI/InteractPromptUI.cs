@@ -24,6 +24,7 @@ public class InteractPromptUI : MonoBehaviour
     [SerializeField] private Color scrapyardColor   = new Color(0.8f,  0.7f,  0.1f,  0.8f);
     [SerializeField] private Color weaponCraftColor = new Color(0.8f,  0.2f,  0.8f,  0.8f);
     [SerializeField] private Color assemblyColor    = new Color(0.55f, 0.25f, 0.95f, 0.8f);
+    [SerializeField] private Color droneConsoleColor = new Color(0.10f, 0.65f, 0.75f, 0.8f);
 
     private void Start()
     {
@@ -153,6 +154,12 @@ public class InteractPromptUI : MonoBehaviour
                 ePrompt     = assembly.GetPromptText(player);
                 break;
 
+            case DroneConsole console:
+                stationName = "Drone Konsolu";
+                bgColor     = droneConsoleColor;
+                ePrompt     = DroneConsolePrompt(console);
+                break;
+
             default:
                 stationName = station.name;
                 bgColor     = Color.grey;
@@ -175,5 +182,26 @@ public class InteractPromptUI : MonoBehaviour
         }
 
         if (panelBackground != null) panelBackground.color = bgColor;
+    }
+
+    /// <summary>
+    /// Drone Konsolu ipucu: pencere kapalıysa geri sayım, açıksa sürüş çağrısı.
+    /// </summary>
+    private string DroneConsolePrompt(DroneConsole console)
+    {
+        DroneRaidZone zone = DroneRaidZone.Instance;
+        if (zone == null) return "";
+
+        if (zone.DroneUsable)
+            return console.CanInteract(player)
+                ? "E: Drone'u Sür"
+                : "Drone görevde / elin dolu";
+
+        float wait = zone.TimeToNextWindow;
+        if (wait < 0f) return "Pencereler bitti";
+
+        int m = Mathf.FloorToInt(wait / 60f);
+        int s = Mathf.FloorToInt(wait % 60f);
+        return $"Sıradaki pencere: {m:00}:{s:00}";
     }
 }

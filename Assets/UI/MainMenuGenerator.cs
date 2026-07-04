@@ -286,6 +286,14 @@ public class MainMenuGenerator : MonoBehaviour
             $"<size=70%><color=#9AA3B3>bekleme -%20, menzil +%15</color></size>",
             "Montaj İstasyonu'nda 10 sn — robot başına 1 modül");
 
+        // Çekirdek bölge ipucu — drone raid mekaniği
+        UIFactory.CreateText("DroneHint", parent,
+            new Vector2(0.5f, 0f), new Vector2(0, 148), new Vector2(1300, 34),
+            "<color=#33D9E6>ÇEKİRDEK BÖLGE</color>  2. / 5. / 8. dakikada açılır — " +
+            "Drone Konsolu'na geç (E), işlenmiş ürünü kap, pedine taşı. " +
+            "Drone'lar çarpışırsa yük düşer!",
+            19, FontStyles.Normal, UIFactory.TextMain);
+
         // Alt ipucu — renk dilinin anahtarı
         UIFactory.CreateText("ColorHint", parent,
             new Vector2(0.5f, 0f), new Vector2(0, 110), new Vector2(1300, 34),

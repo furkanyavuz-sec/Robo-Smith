@@ -52,7 +52,8 @@ public class EventTimelineHUD : MonoBehaviour
         rect.anchorMin        = new Vector2(0.5f, 1f);
         rect.anchorMax        = new Vector2(0.5f, 1f);
         rect.pivot            = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -10f);
+        // TimerPanel üst-ortada y -12..-124 bandını kaplar — şerit hemen altına
+        rect.anchoredPosition = new Vector2(0f, -130f);
         rect.sizeDelta        = new Vector2(1600f, 34f);
 
         instance = root.AddComponent<EventTimelineHUD>();

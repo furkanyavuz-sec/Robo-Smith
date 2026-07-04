@@ -58,7 +58,8 @@ public class RaidAnnouncer : MonoBehaviour
         rect.anchorMin        = new Vector2(0.5f, 1f);
         rect.anchorMax        = new Vector2(0.5f, 1f);
         rect.pivot            = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -90f);
+        // TimerPanel (-12..-124) ve olay şeridi (-130..-164) ile çakışmasın
+        rect.anchoredPosition = new Vector2(0f, -175f);
         rect.sizeDelta        = new Vector2(1400f, 160f);
 
         RaidAnnouncer announcer = root.AddComponent<RaidAnnouncer>();

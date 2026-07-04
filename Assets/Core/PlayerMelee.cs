@@ -49,7 +49,16 @@ public class PlayerMelee : MonoBehaviour
         var keyboard = Keyboard.current;
         if (keyboard == null) return;
 
-        if (keyboard.spaceKey.wasPressedThisFrame && cooldownTimer <= 0f)
+        bool punchPressed = keyboard.spaceKey.wasPressedThisFrame;
+
+        // FPV'de Sol Tık da yumruk atar (FPS refleksi) — normal görünümde
+        // tıklamalar UI'ya karışmasın diye sadece FPV'de aktif
+        Mouse mouse = Mouse.current;
+        if (FirstPersonView.IsActive && mouse != null &&
+            mouse.leftButton.wasPressedThisFrame)
+            punchPressed = true;
+
+        if (punchPressed && cooldownTimer <= 0f)
             Punch();
     }
 

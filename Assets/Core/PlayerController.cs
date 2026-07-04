@@ -18,6 +18,11 @@ public class PlayerController : NetworkBehaviour
     private Camera mainCamera;
     private Vector3 moveDirection;
 
+    // FPV bakış kilidi (FirstPersonView yönetir): gövde, hareket yönü yerine
+    // fare bakışını (yaw) takip eder — yumruk transform.forward'la nişan alır.
+    private bool  lookOverride;
+    private float lookYaw;
+
     private void Awake()
     {
         rb = GetComponent<Rigidbody>();
@@ -108,6 +113,15 @@ public class PlayerController : NetworkBehaviour
 
     private void Rotate()
     {
+        if (lookOverride)
+        {
+            rb.rotation = Quaternion.RotateTowards(
+                rb.rotation, Quaternion.Euler(0f, lookYaw, 0f),
+                rotationSpeed * 2f * Time.fixedDeltaTime
+            );
+            return;
+        }
+
         if (moveDirection == Vector3.zero) return;
         Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
         rb.rotation = Quaternion.RotateTowards(
@@ -116,4 +130,10 @@ public class PlayerController : NetworkBehaviour
     }
 
     public bool IsMoving => moveDirection != Vector3.zero;
+
+    // ── FPV bakış kilidi API'si (FirstPersonView çağırır) ────────────────
+
+    public void EnableLookOverride(float yaw) { lookOverride = true; lookYaw = yaw; }
+    public void SetLookYaw(float yaw)         { lookYaw = yaw; }
+    public void DisableLookOverride()         { lookOverride = false; }
 }

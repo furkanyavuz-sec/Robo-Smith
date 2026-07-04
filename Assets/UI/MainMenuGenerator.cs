@@ -290,8 +290,8 @@ public class MainMenuGenerator : MonoBehaviour
         UIFactory.CreateText("ScrapHint", parent,
             new Vector2(0.5f, 0f), new Vector2(0, 186), new Vector2(1300, 34),
             "<color=#F2D919>HURDALIK</color>  3.5 / 6.5. dakikada 75 sn açılır — " +
-            "içeri koş, saçılan malzemeleri kap; rakip teknisyene Boşluk ile " +
-            "yumruk at, taşıdığını düşür!",
+            "içeri girince kamera gözüne iner (FPV): fareyle bak, saçılan " +
+            "malzemeleri kap, rakibe Sol Tık / Boşluk ile yumruk at!",
             19, FontStyles.Normal, UIFactory.TextMain);
 
         // Çekirdek bölge ipucu — drone raid mekaniği

@@ -269,6 +269,10 @@ public class ScrapWindowZone : MonoBehaviour
         {
             if (pc.GetComponent<PlayerMelee>() == null)
                 pc.gameObject.AddComponent<PlayerMelee>();
+
+            // FPV: pencere açıkken bölgeye girince kamera göze iner
+            if (pc.GetComponent<FirstPersonView>() == null)
+                pc.gameObject.AddComponent<FirstPersonView>();
         }
     }
 }

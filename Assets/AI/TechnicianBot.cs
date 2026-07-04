@@ -178,9 +178,25 @@ public class TechnicianBot : MonoBehaviour
 
     private void DoCarryHome(ScrapWindowZone zone)
     {
-        MoveToward(homePosition);
-        if (FlatDistance(transform.position, homePosition) < 1f)
-            Deliver(zone);
+        if (carried == null) { state = BotState.Collect; return; }
+
+        // Pencere açıkken kapan kapalı — eve değil, içerideki depoya taşır
+        Vector3 target = zone.IsOpen ? zone.RedDepotPosition : homePosition;
+
+        MoveToward(target);
+        if (FlatDistance(transform.position, target) < 1.2f)
+        {
+            if (zone.IsOpen)
+            {
+                zone.DepositFromBot(carried);
+                carried = null;
+                state   = BotState.Collect;
+            }
+            else
+            {
+                Deliver(zone);
+            }
+        }
     }
 
     private void WalkHome(ScrapWindowZone zone)

@@ -427,6 +427,44 @@ public class MapGenerator : MonoBehaviour
     }
 
     /// <summary>
+    /// Takım deposu: ölçeksiz anchor (item'lar buna parent'lanır — çarpılma
+    /// olmasın) + taban plakası + köşe direkleri + yüzen etiket.
+    /// </summary>
+    private Transform CreateDepot(string depotName, Vector3 pos, Color accent)
+    {
+        GameObject anchor = new GameObject(depotName);
+        anchor.transform.SetParent(transform);
+        anchor.transform.position = MapPos(pos);
+
+        // Taban plakası
+        GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        plate.name = "Taban";
+        plate.transform.SetParent(anchor.transform, false);
+        plate.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+        plate.transform.localScale    = new Vector3(2.2f, 0.12f, 2.2f);
+        if (plate.TryGetComponent<Collider>(out Collider pc))
+            DestroyImmediate(pc);
+        ApplyColor(plate, Color.Lerp(accent, Color.black, 0.35f));
+
+        // Köşe direkleri
+        for (int x = -1; x <= 1; x += 2)
+            for (int z = -1; z <= 1; z += 2)
+            {
+                GameObject post = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                post.name = "Direk";
+                post.transform.SetParent(anchor.transform, false);
+                post.transform.localPosition = new Vector3(x * 1f, 0.5f, z * 1f);
+                post.transform.localScale    = new Vector3(0.12f, 1f, 0.12f);
+                if (post.TryGetComponent<Collider>(out Collider cc))
+                    DestroyImmediate(cc);
+                ApplyColor(post, accent);
+            }
+
+        StationVisuals.AddLabel(anchor, depotName, accent, 1.9f);
+        return anchor.transform;
+    }
+
+    /// <summary>
     /// Yüksek enerji duvarı — zone yöneticileri açılınca gömer.
     /// keepCollider: oyunculara fiziksel engel gerekiyorsa true
     /// (drone bariyerleri mantıkla sınırlar, hurdalık bariyerleri collider'la).
@@ -481,6 +519,14 @@ public class MapGenerator : MonoBehaviour
         Configure(zone, "redEvictPoint",  redGate);
         Configure(zone, "barriers",       barriers);
         TryAssignPrefab(zone, "lootPrefab", "ScrapMetal_Prefab");
+
+        // Takım depoları — kapan sırasında toplanan malzemenin güvenli yeri
+        Transform blueDepot = CreateDepot("Mavi Depo",
+            new Vector3(-5.2f, 0f, -6.8f), blueAccent);
+        Transform redDepot  = CreateDepot("Kırmızı Depo",
+            new Vector3(5.2f, 0f, -6.8f), redAccent);
+        Configure(zone, "blueDepotAnchor", blueDepot);
+        Configure(zone, "redDepotAnchor",  redDepot);
 
         // Rakip teknisyen — kırmızı kapı ağzında bekler
         GameObject botObj = new GameObject("Rakip Teknisyen");

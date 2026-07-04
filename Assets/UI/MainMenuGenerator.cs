@@ -289,9 +289,9 @@ public class MainMenuGenerator : MonoBehaviour
         // Hurdalık penceresi ipucu — yaya yağma etkinliği
         UIFactory.CreateText("ScrapHint", parent,
             new Vector2(0.5f, 0f), new Vector2(0, 186), new Vector2(1300, 34),
-            "<color=#F2D919>HURDALIK</color>  3.5 / 6.5. dakikada 75 sn açılır — " +
-            "içeri girince kamera gözüne iner (FPV): fareyle bak, saçılan " +
-            "malzemeleri kap, rakibe Sol Tık / Boşluk ile yumruk at!",
+            "<color=#F2D919>HURDALIK</color>  3.5 / 6.5. dk'da açılır, kapılar " +
+            "10 sn — giren FPV'ye geçer, süre bitene kadar içeride: malzemeyi " +
+            "kap, depona bırak; kapanınca depon garaj kapına taşınır!",
             19, FontStyles.Normal, UIFactory.TextMain);
 
         // Çekirdek bölge ipucu — drone raid mekaniği

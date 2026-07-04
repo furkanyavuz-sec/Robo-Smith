@@ -203,20 +203,8 @@ public class DroneRaidZone : MonoBehaviour
             }
 
             // Işık huzmesi — ödülün yerini uzaktan belli eder (kapılınca gider)
-            AddBeam(obj, StationVisuals.ItemColor(type));
+            StationVisuals.AddLootBeam(obj, StationVisuals.ItemColor(type));
         }
-    }
-
-    private static void AddBeam(GameObject item, Color color)
-    {
-        GameObject beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
-        beam.name = "Beam";
-        Object.Destroy(beam.GetComponent<Collider>());
-        beam.transform.SetParent(item.transform, worldPositionStays: false);
-        beam.transform.localPosition = new Vector3(0f, 2.2f, 0f);
-        beam.transform.localScale    = new Vector3(0.12f, 2.2f, 0.12f);
-        beam.GetComponent<Renderer>().sharedMaterial =
-            StationVisuals.GetMaterial(color);
     }
 
     /// <summary>

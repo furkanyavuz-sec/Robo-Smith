@@ -18,7 +18,6 @@ public class MapGenerator : MonoBehaviour
     [Header("Harita Boyutları")]
     [SerializeField] private float garageWidth    = 20f;
     [SerializeField] private float garageDepth    = 20f;
-    [SerializeField] private float scrapyardWidth = 16f;
     [SerializeField] private float wallHeight     = 3f;
     [SerializeField] private float wallThickness  = 0.5f;
 
@@ -35,8 +34,10 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private Color crateGray    = new Color(0.28f, 0.28f, 0.30f);
     [SerializeField] private Color wallTone     = new Color(0.19f, 0.19f, 0.21f);
 
-    // ── Çekirdek Bölge boyutları (KOD İÇİNDE — tek denge noktası) ────────
+    // ── Harita/bölge boyutları (KOD İÇİNDE — tek denge noktası) ──────────
     // Inspector'daki eski seri değerler haritayı etkilemesin diye sabit.
+    // Hurdalık 16→24: yan bantlar (atölyeler) + kilitlenebilir orta şerit.
+    private const float ScrapyardWidth = 24f;
     private const float CoreZoneGap   = 3f;    // Ön duvar → platform boşluğu
     private const float CoreZoneWidth = 18f;
     private const float CoreZoneDepth = 13f;
@@ -68,13 +69,13 @@ public class MapGenerator : MonoBehaviour
     {
         ClearMap();
 
-        totalWidth  = garageWidth * 2f + scrapyardWidth;
-        teamACenter = -(garageWidth + scrapyardWidth) / 2f;
-        teamBCenter =  (garageWidth + scrapyardWidth) / 2f;
+        totalWidth  = garageWidth * 2f + ScrapyardWidth;
+        teamACenter = -(garageWidth + ScrapyardWidth) / 2f;
+        teamBCenter =  (garageWidth + ScrapyardWidth) / 2f;
 
         // Zeminler
         CreateFloor("Zemin - Mavi Garaj",    teamACenter, garageWidth,    blueFloor);
-        CreateFloor("Zemin - Hurdalık",      0f,          scrapyardWidth, neutralFloor);
+        CreateFloor("Zemin - Hurdalık",      0f,          ScrapyardWidth, neutralFloor);
         CreateFloor("Zemin - Kırmızı Garaj", teamBCenter, garageWidth,    redFloor);
 
         CreateWalls();
@@ -84,6 +85,9 @@ public class MapGenerator : MonoBehaviour
             blueAccent, out Transform blueSpawn);
         BuildGarage(teamBCenter, +1, "Kırmızı", redAccent, out Transform _);
         BuildScrapyard();
+
+        // Hurdalık Penceresi: orta şerit zamanlı açılan yaya yağma alanı
+        BuildScrapWindow();
 
         // Çekirdek bölge: ön duvarın ötesinde, sadece drone'la ulaşılan platform
         BuildDroneRaidZone();
@@ -206,12 +210,12 @@ public class MapGenerator : MonoBehaviour
 
         // İç zemin katmanı — kenarlardan bir tık açık gri
         CreatePad("Hurdalık İç Zemin",
-            Vector3.zero, new Vector2(scrapyardWidth - 2f, garageDepth - 2f),
+            Vector3.zero, new Vector2(ScrapyardWidth - 2f, garageDepth - 2f),
             neutralMid, 0.015f);
 
         // Geçitleri birbirine bağlayan yürüyüş yolu
         CreatePad("Yürüyüş Yolu",
-            Vector3.zero, new Vector2(scrapyardWidth - 0.5f, 2.2f),
+            Vector3.zero, new Vector2(ScrapyardWidth - 0.5f, 2.2f),
             neutralLight, 0.03f);
 
         // Orta kolon: 5 ham madde hurdalığı
@@ -239,22 +243,24 @@ public class MapGenerator : MonoBehaviour
                 new Vector3(0f, 0f, z), new Vector2(2.4f, 2.4f), neutralLight, 0.025f);
         }
 
-        // Sol kolon: 3 silah atölyesi
-        BuildWeaponCraft(new Vector3(-5f, 0f, -7f),   ItemType.ScrapMetal,   ItemType.Sword,  "Kılıç",  "Hurda Metal");
-        BuildWeaponCraft(new Vector3(-5f, 0f, -2.5f), ItemType.CrystalShard, ItemType.Laser,  "Lazer",  "Kristal Kıymık");
-        BuildWeaponCraft(new Vector3(-5f, 0f,  2.5f), ItemType.RocketFuel,   ItemType.Rocket, "Roket",  "Roket Yakıtı");
+        // Yan bantlar: her takım tarafında TAM atölye seti + plazma kaynağı.
+        // Bantlar Hurdalık Penceresi bariyerlerinin (x ±7) DIŞINDA kalır —
+        // pencere kapalıyken de silah üretimi ve plazma akışı hiç kilitlenmez.
+        foreach (int sign in new[] { -1, +1 })
+        {
+            float bx = sign * 9f;
+            string side = sign < 0 ? "Mavi Taraf" : "Kırmızı Taraf";
 
-        // Sağ kolon: 2 silah atölyesi + plazma kaynakları
-        BuildWeaponCraft(new Vector3(5f, 0f, -7f),   ItemType.ShieldAlloy, ItemType.Shield, "Kalkan", "Kalkan Alaşımı");
-        BuildWeaponCraft(new Vector3(5f, 0f, -2.5f), ItemType.EMPCore,     ItemType.EMP,    "EMP",    "EMP Çekirdeği");
+            BuildWeaponCraft(new Vector3(bx, 0f, -8.5f), ItemType.ScrapMetal,   ItemType.Sword,  "Kılıç",  "Hurda Metal");
+            BuildWeaponCraft(new Vector3(bx, 0f, -5.1f), ItemType.CrystalShard, ItemType.Laser,  "Lazer",  "Kristal Kıymık");
+            BuildWeaponCraft(new Vector3(bx, 0f, -1.7f), ItemType.RocketFuel,   ItemType.Rocket, "Roket",  "Roket Yakıtı");
+            BuildWeaponCraft(new Vector3(bx, 0f,  1.7f), ItemType.ShieldAlloy,  ItemType.Shield, "Kalkan", "Kalkan Alaşımı");
+            BuildWeaponCraft(new Vector3(bx, 0f,  5.1f), ItemType.EMPCore,      ItemType.EMP,    "EMP",    "EMP Çekirdeği");
 
-        PlasmaSource plasma1 = Place<PlasmaSource>(plasmaSourcePrefab,
-            "Plazma Kaynağı", new Vector3(5f, 0f, 3f));
-        StationVisuals.DecoratePlasmaSource(plasma1?.gameObject);
-
-        PlasmaSource plasma2 = Place<PlasmaSource>(plasmaSourcePrefab,
-            "Plazma Kaynağı (2)", new Vector3(-5f, 0f, 7f));
-        StationVisuals.DecoratePlasmaSource(plasma2?.gameObject);
+            PlasmaSource plasma = Place<PlasmaSource>(plasmaSourcePrefab,
+                $"Plazma Kaynağı [{side}]", new Vector3(bx, 0f, 8.5f));
+            StationVisuals.DecoratePlasmaSource(plasma?.gameObject);
+        }
 
         // Dekor: siper sandıkları — gri tonlarda, çeşitli boylar
         CreateCrate("Sandık 1", new Vector3(-2.6f,  0f,  5.2f), 1.3f,  18f);
@@ -420,8 +426,13 @@ public class MapGenerator : MonoBehaviour
         Configure(redDrone,  "flightBounds", bounds);
     }
 
-    /// <summary>Yüksek enerji duvarı — DroneRaidZone açılınca gömer.</summary>
-    private Transform CreateBarrier(string barrierName, Vector3 pos, Vector3 scale)
+    /// <summary>
+    /// Yüksek enerji duvarı — zone yöneticileri açılınca gömer.
+    /// keepCollider: oyunculara fiziksel engel gerekiyorsa true
+    /// (drone bariyerleri mantıkla sınırlar, hurdalık bariyerleri collider'la).
+    /// </summary>
+    private Transform CreateBarrier(string barrierName, Vector3 pos, Vector3 scale,
+        bool keepCollider = false)
     {
         GameObject barrier = GameObject.CreatePrimitive(PrimitiveType.Cube);
         barrier.name = barrierName;
@@ -429,12 +440,56 @@ public class MapGenerator : MonoBehaviour
         barrier.transform.position   = MapPos(new Vector3(pos.x, scale.y / 2f, pos.z));
         barrier.transform.localScale = scale;
 
-        // Bariyer görsel + mantık DroneRaidZone.MaxAllowedZ'de — fiziği yok
-        if (barrier.TryGetComponent<Collider>(out Collider col))
+        if (!keepCollider && barrier.TryGetComponent<Collider>(out Collider col))
             DestroyImmediate(col);
 
         ApplyColor(barrier, barrierColor);
         return barrier.transform;
+    }
+
+    /// <summary>
+    /// Hurdalık Penceresi: orta şeridi (x ±7) çevreleyen collider'lı
+    /// bariyerler + ScrapWindowZone yöneticisi + rakip teknisyen.
+    /// Ön/arka taraf zaten harita duvarlarıyla kapalı — 2 bariyer yeter.
+    /// </summary>
+    private void BuildScrapWindow()
+    {
+        float halfD = garageDepth / 2f;
+        const float zoneHalfW = 7f;
+
+        Transform[] barriers = new Transform[2];
+        barriers[0] = CreateBarrier("Hurdalık Bariyeri (Mavi taraf)",
+            new Vector3(-zoneHalfW, 0f, 0f),
+            new Vector3(0.35f, 3.5f, garageDepth), keepCollider: true);
+        barriers[1] = CreateBarrier("Hurdalık Bariyeri (Kırmızı taraf)",
+            new Vector3(zoneHalfW, 0f, 0f),
+            new Vector3(0.35f, 3.5f, garageDepth), keepCollider: true);
+
+        // Kapı ağızları — pencere kapanınca içeridekiler buraya ışınlanır
+        Vector3 blueGate = MapPos(new Vector3(teamACenter + garageWidth / 2f - 2f, 0f, 0f));
+        Vector3 redGate  = MapPos(new Vector3(teamBCenter - garageWidth / 2f + 2f, 0f, 0f));
+
+        GameObject zoneObj = new GameObject("Hurdalık Penceresi");
+        zoneObj.transform.SetParent(transform);
+        zoneObj.transform.position = MapPos(Vector3.zero);
+
+        ScrapWindowZone zone = zoneObj.AddComponent<ScrapWindowZone>();
+        Configure(zone, "zoneRect", new Vector4(
+            transform.position.x - zoneHalfW, transform.position.x + zoneHalfW,
+            transform.position.z - halfD,     transform.position.z + halfD));
+        Configure(zone, "blueEvictPoint", blueGate);
+        Configure(zone, "redEvictPoint",  redGate);
+        Configure(zone, "barriers",       barriers);
+        TryAssignPrefab(zone, "lootPrefab", "ScrapMetal_Prefab");
+
+        // Rakip teknisyen — kırmızı kapı ağzında bekler
+        GameObject botObj = new GameObject("Rakip Teknisyen");
+        botObj.transform.SetParent(transform);
+        botObj.transform.position = redGate;
+
+        TechnicianBot bot = botObj.AddComponent<TechnicianBot>();
+        Configure(bot, "homePosition", redGate);
+        bot.BuildVisual();
     }
 
     private void BuildWeaponCraft(Vector3 pos, ItemType input, ItemType output,
@@ -698,8 +753,8 @@ public class MapGenerator : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        float tAC = -(garageWidth + scrapyardWidth) / 2f;
-        float tBC =  (garageWidth + scrapyardWidth) / 2f;
+        float tAC = -(garageWidth + ScrapyardWidth) / 2f;
+        float tBC =  (garageWidth + ScrapyardWidth) / 2f;
         Vector3 c = transform.position;
 
         Gizmos.color = new Color(0.3f, 0.5f, 1f);
@@ -708,7 +763,7 @@ public class MapGenerator : MonoBehaviour
 
         Gizmos.color = Color.gray;
         Gizmos.DrawWireCube(c,
-            new Vector3(scrapyardWidth, 0.1f, garageDepth));
+            new Vector3(ScrapyardWidth, 0.1f, garageDepth));
 
         Gizmos.color = new Color(1f, 0.3f, 0.3f);
         Gizmos.DrawWireCube(c + new Vector3(tBC, 0f, 0f),

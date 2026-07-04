@@ -258,6 +258,22 @@ public class DirectorAI : MonoBehaviour
         Debug.Log($"[DirectorAI] 🛸 Drone teslimatı işlendi: {type} (+{DRONE_REWARD_STAT})");
     }
 
+    /// <summary>
+    /// Rakip teknisyen Hurdalık Penceresi'nden malzeme kaçırınca çağrılır.
+    /// Ham madde stat vermez — üretim bandını hızlandırır (tüm sayaçlar -3sn).
+    /// </summary>
+    public void ReceiveScrapDelivery()
+    {
+        if (!isActive || robotsBuilt >= maxRobots) return;
+
+        const float BOOST = 3f;
+        plateTimer  = Mathf.Max(0.4f, plateTimer  - BOOST);
+        plasmaTimer = Mathf.Max(0.4f, plasmaTimer - BOOST);
+        chipTimer   = Mathf.Max(0.4f, chipTimer   - BOOST);
+
+        Debug.Log("[DirectorAI] 🔧 Teknisyen teslimatı: üretim sayaçları -3sn.");
+    }
+
     // ── Silah Donanımı ───────────────────────────────────────────────────
 
     private static readonly ItemType[] offensiveWeapons =

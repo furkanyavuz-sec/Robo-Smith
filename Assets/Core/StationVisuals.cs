@@ -232,6 +232,25 @@ public static class StationVisuals
     // ── Yapı Taşları ─────────────────────────────────────────────────────
 
     /// <summary>Neon taban halkası — istasyonun altında parlayan ince plaka.</summary>
+    /// <summary>
+    /// Yağma ışık huzmesi — yerdeki ödülün konumunu uzaktan belli eder.
+    /// Item alınınca "Beam" child'ını yok etmek yeterli.
+    /// </summary>
+    public static void AddLootBeam(GameObject item, Color color)
+    {
+        GameObject beam = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        beam.name = "Beam";
+        if (beam.TryGetComponent<Collider>(out Collider col))
+        {
+            if (Application.isPlaying) Object.Destroy(col);
+            else                       Object.DestroyImmediate(col);
+        }
+        beam.transform.SetParent(item.transform, worldPositionStays: false);
+        beam.transform.localPosition = new Vector3(0f, 2.2f, 0f);
+        beam.transform.localScale    = new Vector3(0.12f, 2.2f, 0.12f);
+        beam.GetComponent<Renderer>().sharedMaterial = GetMaterial(color);
+    }
+
     /// <summary>Drone Konsolu — takım renginde çerçeve + anten + etiket.</summary>
     public static void DecorateDroneConsole(GameObject station, Color teamAccent)
     {

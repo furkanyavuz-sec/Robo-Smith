@@ -111,7 +111,7 @@ public class MainMenuGenerator : MonoBehaviour
 
         UIFactory.CreateText("ControlsText", howToPanel.transform,
             new Vector2(0.5f, 1f), new Vector2(0, -145), new Vector2(1200, 32),
-            "WASD  Hareket      E  Al / Kullan      Q  Silah Geliştir      Tab / F  Zırh Seç",
+            "WASD  Hareket      E  Al / Kullan      Q  Silah Geliştir      Tab / F  Zırh Seç      Boşluk  Yumruk",
             19, FontStyles.Bold, UIFactory.TextMain);
 
         BuildRecipeChart(howToPanel.transform);
@@ -285,6 +285,14 @@ public class MainMenuGenerator : MonoBehaviour
             $"{Chip(ItemType.PlasmaCore)} Çekirdek + {Chip(ItemType.Microchip)} Çip  →  {Colored("Hedefleme", ItemType.TargetingComputer)}\n" +
             $"<size=70%><color=#9AA3B3>bekleme -%20, menzil +%15</color></size>",
             "Montaj İstasyonu'nda 10 sn — robot başına 1 modül");
+
+        // Hurdalık penceresi ipucu — yaya yağma etkinliği
+        UIFactory.CreateText("ScrapHint", parent,
+            new Vector2(0.5f, 0f), new Vector2(0, 186), new Vector2(1300, 34),
+            "<color=#F2D919>HURDALIK</color>  3.5 / 6.5. dakikada 75 sn açılır — " +
+            "içeri koş, saçılan malzemeleri kap; rakip teknisyene Boşluk ile " +
+            "yumruk at, taşıdığını düşür!",
+            19, FontStyles.Normal, UIFactory.TextMain);
 
         // Çekirdek bölge ipucu — drone raid mekaniği
         UIFactory.CreateText("DroneHint", parent,

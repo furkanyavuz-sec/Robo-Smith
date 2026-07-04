@@ -57,6 +57,14 @@ public class TechnicianBot : MonoBehaviour
 
     private void Start()
     {
+        // MP'de rakip gerçek oyuncu — bot sahneden kalkar (Faz 3 notu)
+        if (Unity.Netcode.NetworkManager.Singleton != null &&
+            Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            gameObject.SetActive(false);
+            return;
+        }
+
         Difficulty diff = MatchData.Instance != null
             ? MatchData.Instance.SelectedDifficulty
             : Difficulty.Normal;

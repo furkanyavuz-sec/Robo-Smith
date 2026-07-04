@@ -6,6 +6,7 @@
 //   - Overtime: robotlar hâlâ hayattaysa hasar çarpanını artırır
 // NGO notu: Timer server'da koşacak, ClientRpc ile sync edilecek.
 
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -44,6 +45,15 @@ public class GameManager : MonoBehaviour
     public GamePhase  CurrentPhase => currentPhase;
     public float      PhaseTimer   => phaseTimer;           // UI için
     public Difficulty Difficulty   => difficulty;
+
+    /// <summary>
+    /// MP client: timer'ı yerel koşturmaz, NetworkGameState'ten okur.
+    /// Host hem server hem oyuncu olduğundan normal yoldan yönetir.
+    /// </summary>
+    private bool IsNetworkClient =>
+        NetworkManager.Singleton != null &&
+        NetworkManager.Singleton.IsListening &&
+        !NetworkManager.Singleton.IsServer;
 
     // ── Unity Lifecycle ──────────────────────────────────────────────────
 
@@ -109,6 +119,11 @@ public class GameManager : MonoBehaviour
 
         phaseTimer -= Time.deltaTime;
 
+        // Client: faz geçişlerine karar VERMEZ — server verir, sahneyi NGO
+        // taşır, düzeltilmiş timer ApplyNetworkState ile gelir. Yereldeki
+        // azaltma yalnız iki senkron arasını yumuşatır.
+        if (IsNetworkClient) return;
+
         switch (currentPhase)
         {
             case GamePhase.Preparation:
@@ -154,7 +169,34 @@ public class GameManager : MonoBehaviour
 
     private void LoadArenaScene()
     {
+        // MP'de sahneyi NGO taşır — tüm client'lar birlikte geçer
+        if (NetworkManager.Singleton != null &&
+            NetworkManager.Singleton.IsListening &&
+            NetworkManager.Singleton.IsServer)
+        {
+            NetworkManager.Singleton.SceneManager.LoadScene(
+                arenaSceneName, LoadSceneMode.Single);
+            return;
+        }
+
         SceneManager.LoadScene(arenaSceneName);
+    }
+
+    /// <summary>
+    /// MP client: NetworkGameState server'dan gelen faz + timer'ı uygular.
+    /// Küçük sapmaları yut (4 Hz yazım + yerel azaltma arası titreme olmasın).
+    /// </summary>
+    public void ApplyNetworkState(GamePhase phase, float timer)
+    {
+        if (!IsNetworkClient) return;
+
+        currentPhase = phase;
+        matchStarted = phase == GamePhase.Preparation ||
+                       phase == GamePhase.Arena ||
+                       phase == GamePhase.Overtime;
+
+        if (Mathf.Abs(phaseTimer - timer) > 0.35f)
+            phaseTimer = timer;
     }
 
     /// <summary>

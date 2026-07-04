@@ -7,6 +7,7 @@
 // Her üretim döngüsünde sırayla SteelPlate → PlasmaCore üretir,
 // tamamlanınca MatchData'ya rakip robot olarak kaydeder.
 
+using Unity.Netcode;
 using UnityEngine;
 
 public class DirectorAI : MonoBehaviour
@@ -80,6 +81,14 @@ public class DirectorAI : MonoBehaviour
 
     private void Start()
     {
+        // MP'de rakip gerçek oyuncu — yapay rakip üretimi kapalı
+        if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
+        {
+            enabled = false;
+            Debug.Log("[DirectorAI] Multiplayer — devre dışı.");
+            return;
+        }
+
         // Zorluk ayarını kod tablosundan al
         Difficulty diff = MatchData.Instance != null
                         ? MatchData.Instance.SelectedDifficulty

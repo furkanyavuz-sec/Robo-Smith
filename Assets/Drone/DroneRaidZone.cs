@@ -101,6 +101,11 @@ public class DroneRaidZone : MonoBehaviour
 
     private void Update()
     {
+        // MP Faz 3'e kadar etkinlikler yalnız offline — senkronsuz iki
+        // gerçeklik oluşmasın (her client kendi penceresini açardı)
+        if (Unity.Netcode.NetworkManager.Singleton != null &&
+            Unity.Netcode.NetworkManager.Singleton.IsListening) return;
+
         if (GameManager.Instance == null ||
             GameManager.Instance.CurrentPhase != GamePhase.Preparation)
         {

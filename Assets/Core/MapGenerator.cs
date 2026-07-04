@@ -92,6 +92,14 @@ public class MapGenerator : MonoBehaviour
         // Çekirdek bölge: ön duvarın ötesinde, sadece drone'la ulaşılan platform
         BuildDroneRaidZone();
 
+        // MP Faz 1: server-authoritative faz/timer köprüsü (in-scene NetworkObject —
+        // NGO sahneyi yükleyince server'da spawn eder, client'la eşleştirir)
+        GameObject netState = new GameObject("Network Game State");
+        netState.transform.SetParent(transform);
+        netState.transform.position = MapPos(Vector3.zero);
+        netState.AddComponent<Unity.Netcode.NetworkObject>();
+        netState.AddComponent<NetworkGameState>();
+
         WireSceneReferences(blueChassis, blueSpawn);
         WarnAboutOrphanStations();
         MarkSceneDirty();

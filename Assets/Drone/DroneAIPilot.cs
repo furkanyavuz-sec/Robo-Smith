@@ -35,6 +35,14 @@ public class DroneAIPilot : MonoBehaviour
 
     private void Start()
     {
+        // MP'de kırmızı drone'u client oyuncusu sürecek (Faz 3) — AI kapalı
+        if (Unity.Netcode.NetworkManager.Singleton != null &&
+            Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            enabled = false;
+            return;
+        }
+
         drone = GetComponent<SupplyDrone>();
 
         Difficulty diff = MatchData.Instance != null

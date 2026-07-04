@@ -74,6 +74,14 @@ public class EventTimelineHUD : MonoBehaviour
             return;
         }
 
+        // MP'de etkinlikler Faz 3'e kadar kapalı — donuk çizelge gösterme
+        if (Unity.Netcode.NetworkManager.Singleton != null &&
+            Unity.Netcode.NetworkManager.Singleton.IsListening)
+        {
+            label.text = "";
+            return;
+        }
+
         label.text = BuildTimeline();
     }
 

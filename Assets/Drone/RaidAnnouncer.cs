@@ -20,6 +20,8 @@ public class RaidAnnouncer : MonoBehaviour
     {
         if (instance == null) instance = Create();
 
+        Sfx.Play(Sfx.Id.Announce, 0.4f);   // Her anons dikkat bip'iyle gelir
+
         instance.label.text  = message;
         instance.baseColor   = color;
         instance.duration    = seconds;

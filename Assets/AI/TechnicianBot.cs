@@ -280,6 +280,9 @@ public class TechnicianBot : MonoBehaviour
         stunTimer = STUN_DURATION;
         transform.position += knockDir * 0.8f;
 
+        Sfx.Play(Sfx.Id.Hit);
+        CameraShake.Add(0.15f);   // İsabet hissi — vuran oyuncuya geri bildirim
+
         DamagePopup.Spawn(transform.position, "SERSEMLEDİ!",
             new Color(0.95f, 0.45f, 0.15f), 1.1f);
 

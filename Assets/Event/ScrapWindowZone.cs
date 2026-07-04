@@ -74,6 +74,21 @@ public class ScrapWindowZone : MonoBehaviour
         ? redDepotAnchor.position
         : redEvictPoint;
 
+    /// <summary>Bekleyen pencerelere kalan süreler — EventTimelineHUD için.</summary>
+    public IEnumerable<float> UpcomingWindows()
+    {
+        for (int i = windowIndex; i < windowOpenTimes.Length; i++)
+        {
+            float remain = windowOpenTimes[i] - elapsed;
+            if (remain > 0f) yield return remain;
+        }
+    }
+
+    /// <summary>Açık pencerenin kapanmasına kalan süre (açık değilse -1).</summary>
+    public float OpenTimeRemaining => IsOpen && windowIndex < windowOpenTimes.Length
+        ? Mathf.Max(0f, windowOpenTimes[windowIndex] + windowDuration - elapsed)
+        : -1f;
+
     public bool IsInside(Vector3 pos) =>
         pos.x > zoneRect.x && pos.x < zoneRect.y &&
         pos.z > zoneRect.z && pos.z < zoneRect.w;
@@ -81,6 +96,7 @@ public class ScrapWindowZone : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        EventTimelineHUD.Ensure();
 
         if (barriers != null)
         {
@@ -150,6 +166,7 @@ public class ScrapWindowZone : MonoBehaviour
                     gatesClosedAnnounced = false;
                     entryTimer           = entryDuration;
                     ScatterLoot();
+                    Sfx.Play(Sfx.Id.WindowOpen);
                     RaidAnnouncer.Show(
                         $"HURDALIK AÇILDI — KAPILAR {Mathf.RoundToInt(entryDuration)} " +
                         "SANİYE AÇIK, İÇERİ GİR!",
@@ -164,6 +181,8 @@ public class ScrapWindowZone : MonoBehaviour
                 {
                     gatesClosedAnnounced = true;
                     CaptureOccupants();
+                    Sfx.Play(Sfx.Id.WindowClose, 0.5f);
+                    CameraShake.Add(0.2f);
                     RaidAnnouncer.Show(
                         "KAPILAR KAPANDI — SÜRE BİTENE KADAR İÇERİDESİN!\n" +
                         "<size=60%>Topladığını kendi depona bırak</size>",
@@ -206,10 +225,13 @@ public class ScrapWindowZone : MonoBehaviour
         lockedOccupants.Clear();
 
         if (!silent)
+        {
+            Sfx.Play(Sfx.Id.WindowClose);
             RaidAnnouncer.Show(delivered > 0
                 ? $"HURDALIK KAPANDI — {delivered} MALZEME GARAJ KAPINA TAŞINDI!"
                 : "HURDALIK KAPANDI",
                 new Color(0.95f, 0.32f, 0.26f), 3f);
+        }
     }
 
     /// <summary>Bariyer kalkarken içeride kalan herkesi kapı ağzına ışınla.</summary>
@@ -345,6 +367,7 @@ public class ScrapWindowZone : MonoBehaviour
             if (held.TryGetComponent<PickupItem>(out PickupItem item))
             {
                 DepositItem(item, blueDepot, blueDepotAnchor);
+                Sfx.Play(Sfx.Id.Deposit);
                 DamagePopup.Spawn(blueDepotAnchor.position, "DEPOLANDI!",
                     new Color(0.25f, 0.50f, 0.95f), 1f);
             }

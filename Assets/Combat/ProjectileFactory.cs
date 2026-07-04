@@ -17,6 +17,8 @@ public static class ProjectileFactory
         GameObject obj = BuildBody(origin, new Vector3(0.14f, 0.14f, 0.55f),
             color, trailWidth: 0.10f, trailTime: 0.15f);
 
+        Sfx.Play(Sfx.Id.Laser, 0.3f);
+
         Projectile p = obj.AddComponent<Projectile>();
         UIFactory.SetField(p, "moveSpeed", 18f);   // Lazer hızlı uçar
         return p;
@@ -28,6 +30,8 @@ public static class ProjectileFactory
         GameObject obj = BuildBody(origin, new Vector3(0.24f, 0.24f, 0.5f),
             color, trailWidth: 0.18f, trailTime: 0.35f);
 
+        Sfx.Play(Sfx.Id.Rocket, 0.4f);
+
         RocketProjectile r = obj.AddComponent<RocketProjectile>();
         UIFactory.SetField(r, "moveSpeed", 10f);
         return r;
@@ -38,6 +42,8 @@ public static class ProjectileFactory
     {
         GameObject obj = BuildBody(origin, Vector3.one * 0.28f,
             color, trailWidth: 0.14f, trailTime: 0.25f);
+
+        Sfx.Play(Sfx.Id.Emp, 0.35f);
 
         Projectile p = obj.AddComponent<Projectile>();
         UIFactory.SetField(p, "moveSpeed", 11f);

@@ -11,12 +11,20 @@ public static class DeathExplosion
     private const int   PieceCount    = 10;
     private const float PieceLifetime = 1.2f;
 
-    public static void Spawn(Vector3 position, Color teamColor) =>
+    public static void Spawn(Vector3 position, Color teamColor)
+    {
+        Sfx.Play(Sfx.Id.Explosion);
+        CameraShake.Add(0.6f);
         SpawnInternal(position, teamColor, PieceCount, 0.12f, 0.28f, 2.4f);
+    }
 
     /// <summary>Roket çarpması gibi küçük patlamalar için hafif versiyon.</summary>
-    public static void SmallBlast(Vector3 position, Color color) =>
+    public static void SmallBlast(Vector3 position, Color color)
+    {
+        Sfx.Play(Sfx.Id.Explosion, 0.35f);
+        CameraShake.Add(0.2f);
         SpawnInternal(position, color, 5, 0.08f, 0.16f, 1.4f);
+    }
 
     private static void SpawnInternal(Vector3 position, Color teamColor,
         int pieceCount, float minSize, float maxSize, float flashScale)

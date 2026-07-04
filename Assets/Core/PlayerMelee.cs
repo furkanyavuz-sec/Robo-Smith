@@ -66,6 +66,9 @@ public class PlayerMelee : MonoBehaviour
     {
         cooldownTimer = punchCooldown;
 
+        Sfx.Play(Sfx.Id.Punch);
+        CameraShake.Add(0.12f);
+
         Vector3 hitCenter = transform.position + transform.forward * punchRange;
         DamagePopup.Spawn(hitCenter - Vector3.up * 1.2f, "DARBE!",
             new Color(0.95f, 0.85f, 0.10f), 0.8f);
@@ -107,6 +110,9 @@ public class PlayerMelee : MonoBehaviour
         interaction?.ForceDropFromStation();
 
         transform.position += knockDir * 0.8f;
+
+        Sfx.Play(Sfx.Id.Hit);
+        CameraShake.Add(0.4f);   // Darbeyi yiyen benim — ekran sallansın
 
         DamagePopup.Spawn(transform.position, "SERSEMLEDİ!",
             new Color(0.95f, 0.45f, 0.15f), 1.1f);

@@ -64,9 +64,25 @@ public class DroneRaidZone : MonoBehaviour
         ? Mathf.Max(0f, windowOpenTimes[windowIndex] - elapsed)
         : -1f;
 
+    /// <summary>Bekleyen pencerelere kalan süreler — EventTimelineHUD için.</summary>
+    public IEnumerable<float> UpcomingWindows()
+    {
+        for (int i = windowIndex; i < windowOpenTimes.Length; i++)
+        {
+            float remain = windowOpenTimes[i] - elapsed;
+            if (remain > 0f) yield return remain;
+        }
+    }
+
+    /// <summary>Açık pencerenin kapanmasına kalan süre (açık değilse -1).</summary>
+    public float OpenTimeRemaining => IsOpen && windowIndex < windowOpenTimes.Length
+        ? Mathf.Max(0f, windowOpenTimes[windowIndex] + windowDuration - elapsed)
+        : -1f;
+
     private void Awake()
     {
         Instance = this;
+        EventTimelineHUD.Ensure();
 
         // Bariyerlerin kapalı pozisyonlarını ezberle
         if (barriers != null)
@@ -128,6 +144,7 @@ public class DroneRaidZone : MonoBehaviour
                     State = ZoneState.Open;
                     tenSecondsWarned = false;
                     SpawnRewards();
+                    Sfx.Play(Sfx.Id.WindowOpen);
                     RaidAnnouncer.Show("ÇEKİRDEK BÖLGE AÇILDI!",
                         new Color(0.20f, 0.95f, 0.60f), 3f);
                 }
@@ -166,8 +183,11 @@ public class DroneRaidZone : MonoBehaviour
         redDrone?.ForceReturnHome();
 
         if (!silent)
+        {
+            Sfx.Play(Sfx.Id.WindowClose);
             RaidAnnouncer.Show("ÇEKİRDEK BÖLGE KAPANDI",
                 new Color(0.95f, 0.32f, 0.26f), 2.5f);
+        }
     }
 
     // ── Ödüller ──────────────────────────────────────────────────────────
@@ -281,6 +301,9 @@ public class DroneRaidZone : MonoBehaviour
 
         bool anyDropped = blueDrone.OnRammed( apart) |
                           redDrone .OnRammed(-apart);
+
+        Sfx.Play(Sfx.Id.Steal);
+        CameraShake.Add(0.25f);
 
         if (anyDropped)
             RaidAnnouncer.Show("DRONE ÇARPIŞMASI — YÜK DÜŞTÜ!",

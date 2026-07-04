@@ -214,6 +214,7 @@ public class SupplyDrone : MonoBehaviour
         if (item == null) return;
 
         carried = item;
+        Sfx.Play(Sfx.Id.Grab, 0.5f);
 
         if (item.TryGetComponent<Rigidbody>(out Rigidbody rb))
         {
@@ -251,6 +252,7 @@ public class SupplyDrone : MonoBehaviour
             if (item.TryGetComponent<Collider>(out Collider col))
                 col.isTrigger = false;
 
+            Sfx.Play(Sfx.Id.Deposit);
             RaidAnnouncer.Show($"TESLİMAT: {ItemName(item.Type)} PEDDE!",
                 StationVisuals.ItemColor(item.Type), 2.5f);
         }

@@ -26,8 +26,12 @@ public class LobbyUI : MonoBehaviour
     [SerializeField] private TextMeshProUGUI playerCountText;
 
     [SerializeField] private Button startMatchButton;
+
     private void Start()
 {
+    // Eski üretilmiş sahnelerde referanslar boş kalabilir — isimle kendini onar
+    AutoWireIfMissing();
+
     hostButton?.onClick.AddListener(OnHostClicked);
     clientButton?.onClick.AddListener(OnClientClicked);
     disconnectButton?.onClick.AddListener(OnDisconnectClicked);
@@ -129,14 +133,57 @@ private void OnDisconnectClicked()
     private void UpdatePlayerCount()
     {
         if (playerCountText == null) return;
-        if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
+
+        NetworkManager nm = NetworkManager.Singleton;
+        if (nm == null || !nm.IsListening)
         {
-            playerCountText.text = "Oyuncu: 0";
+            playerCountText.text = "Oyuncu: 0/2";
             return;
         }
 
-        int count = NetworkManager.Singleton.ConnectedClients.Count;
-        playerCountText.text = $"Oyuncu: {count}/6";
+        // ConnectedClients yalnız server'da doludur — client'ta bağlantı
+        // durumunu gösteririz (sayacı ancak server bilir)
+        if (nm.IsServer)
+        {
+            int count = nm.ConnectedClients.Count;
+            playerCountText.text = $"Oyuncu: {count}/2";
+
+            if (count >= 2)
+                UpdateStatus("Rakip bağlandı — OYUNU BAŞLAT hazır!");
+        }
+        else
+        {
+            playerCountText.text = nm.IsConnectedClient
+                ? "Bağlandın — host'un başlatması bekleniyor"
+                : "Bağlanılıyor...";
+        }
+    }
+
+    /// <summary>
+    /// Eski sahnelerdeki üretilmiş lobby'lerde sonradan eklenen alanlar
+    /// (örn. startMatchButton) boş kalabiliyor — isimle bulup bağlar.
+    /// </summary>
+    private void AutoWireIfMissing()
+    {
+        if (startMatchButton == null) startMatchButton = FindChild<Button>("StartMatchButton");
+        if (hostButton       == null) hostButton       = FindChild<Button>("HostButton");
+        if (clientButton     == null) clientButton     = FindChild<Button>("ClientButton");
+        if (disconnectButton == null) disconnectButton = FindChild<Button>("DisconnectButton");
+        if (ipInputField     == null) ipInputField     = FindChild<TMP_InputField>("IPInputField");
+        if (portInputField   == null) portInputField   = FindChild<TMP_InputField>("PortInputField");
+        if (statusText       == null) statusText       = FindChild<TextMeshProUGUI>("StatusText");
+        if (playerCountText  == null) playerCountText  = FindChild<TextMeshProUGUI>("PlayerCountText");
+
+        if (startMatchButton == null)
+            Debug.LogWarning("[LobbyUI] StartMatchButton sahnede yok — MainMenu'de " +
+                             "'Generate Lobby UI' çalıştırıp sahneyi kaydet.");
+    }
+
+    private T FindChild<T>(string childName) where T : Component
+    {
+        foreach (T c in GetComponentsInChildren<T>(true))
+            if (c.gameObject.name == childName) return c;
+        return null;
     }
 
     private void SetButtonsConnected(bool connected)

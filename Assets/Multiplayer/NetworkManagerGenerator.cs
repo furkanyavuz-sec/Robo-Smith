@@ -18,9 +18,9 @@ public void GenerateNetworkManager()
 {
     ClearNetworkManager();
 
-    // NetworkManager objesi
+    // NetworkManager objesi — KÖK seviyede kalmalı: NGO nested
+    // NetworkManager'ı kabul etmiyor ("Invalid Nested NetworkManager")
     GameObject nmObj = new GameObject("NetworkManager");
-    nmObj.transform.SetParent(transform);
 
     // NGO bileşenleri
     NetworkManager    nm        = nmObj.AddComponent<NetworkManager>();
@@ -92,7 +92,14 @@ public void GenerateNetworkManager()
     [ContextMenu("Clear Network Manager")]
     public void ClearNetworkManager()
     {
+        // Eski sürümün altımıza koyduğu kopyalar
         for (int i = transform.childCount - 1; i >= 0; i--)
             DestroyImmediate(transform.GetChild(i).gameObject);
+
+        // Sahnedeki TÜM NetworkManager'lar (kökte kalanlar dahil) —
+        // birden fazla kopya NGO'yu bozar, üretim hep tek kopyayla başlar
+        foreach (NetworkManager nm in FindObjectsByType<NetworkManager>(
+                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+            DestroyImmediate(nm.gameObject);
     }
 }

@@ -33,6 +33,46 @@ public class NetworkGameState : NetworkBehaviour
         Instance = this;
     }
 
+    public override void OnNetworkSpawn()
+    {
+        Debug.Log($"[NetworkGameState] ✅ Senkron köprüsü aktif " +
+                  $"(IsServer={IsServer}) — timer server'dan yayınlanıyor.");
+
+        // NGO bazı akışlarda lobby'de spawn olan oyuncuyu yeni sahneye
+        // taşımıyor — server, oyuncu objesi kayıp client'ları onarır.
+        if (IsServer) StartCoroutine(EnsurePlayersSpawned());
+    }
+
+    private System.Collections.IEnumerator EnsurePlayersSpawned()
+    {
+        yield return null;   // Spawn/migrasyon işlemleri otursun
+
+        NetworkManager nm = NetworkManager.Singleton;
+        if (nm == null) yield break;
+
+        GameObject prefab = nm.NetworkConfig.PlayerPrefab;
+
+        foreach (NetworkClient client in nm.ConnectedClientsList)
+        {
+            if (client.PlayerObject != null && client.PlayerObject.IsSpawned)
+                continue;
+
+            if (prefab == null)
+            {
+                Debug.LogError("[NetworkGameState] PlayerPrefab atanmamış — " +
+                               "NetworkManager ayarlarını kontrol et!");
+                yield break;
+            }
+
+            GameObject obj = Instantiate(prefab);
+            obj.GetComponent<NetworkObject>()
+               .SpawnAsPlayerObject(client.ClientId, destroyWithScene: true);
+
+            Debug.Log($"[NetworkGameState] 🔧 Kayıp oyuncu yeniden spawn " +
+                      $"edildi: client {client.ClientId}");
+        }
+    }
+
     public override void OnDestroy()
     {
         if (Instance == this) Instance = null;

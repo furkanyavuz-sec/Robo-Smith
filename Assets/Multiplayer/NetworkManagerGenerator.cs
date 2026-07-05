@@ -30,15 +30,64 @@ public void GenerateNetworkManager()
     // Transport'u NetworkManager'a bağla
     nm.NetworkConfig.NetworkTransport = transport;
 
-    // Player Prefab
-    if (playerPrefab != null)
+    // Player Prefab — Inspector boşsa asset'lerden kendimiz buluruz
+    // (PlayerPrefab'sız NetworkManager oyuncu spawn edemez = gri ekran)
+    if (playerPrefab == null)
+        playerPrefab = FindPlayerPrefab();
+
+    if (playerPrefab == null)
+    {
+        Debug.LogError("[NetworkManagerGenerator] ❌ Player prefabı bulunamadı! " +
+                       "Inspector'dan 'Player Prefab' alanına Player Variant'ı bağla " +
+                       "ve tekrar üret — bu olmadan multiplayer oyuncu spawn EDEMEZ.");
+    }
+    else if (playerPrefab.GetComponent<NetworkObject>() == null)
+    {
+        Debug.LogError($"[NetworkManagerGenerator] ❌ '{playerPrefab.name}' " +
+                       "prefabında NetworkObject yok — ağ oyuncusu olamaz!");
+    }
+    else
+    {
         nm.NetworkConfig.PlayerPrefab = playerPrefab;
+        Debug.Log($"[NetworkManagerGenerator] Player prefabı bağlandı: " +
+                  $"{playerPrefab.name}");
+    }
 
     nmObj.AddComponent<DontDestroyHelper>();
 
-    Debug.Log("[NetworkManagerGenerator] NetworkManager olusturuldu! " +
-              "NetworkManagerSetup.cs'i manuel ekle.");
+    Debug.Log("[NetworkManagerGenerator] ✅ NetworkManager oluşturuldu. " +
+              "Sahneyi kaydet (Ctrl+S).");
 }
+
+    /// <summary>
+    /// Ağ oyuncusu prefabını asset'lerde arar: NetworkObject'li olan
+    /// "Player Variant" öncelikli, yoksa "Player".
+    /// </summary>
+    private GameObject FindPlayerPrefab()
+    {
+#if UNITY_EDITOR
+        foreach (string searchName in new[] { "Player Variant", "Player" })
+        {
+            string[] guids = UnityEditor.AssetDatabase.FindAssets(
+                $"{searchName} t:Prefab");
+
+            foreach (string guid in guids)
+            {
+                string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+                GameObject prefab =
+                    UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+
+                if (prefab != null && prefab.GetComponent<NetworkObject>() != null)
+                {
+                    Debug.Log($"[NetworkManagerGenerator] Player prefabı " +
+                              $"otomatik bulundu: {path}");
+                    return prefab;
+                }
+            }
+        }
+#endif
+        return null;
+    }
 
     [ContextMenu("Clear Network Manager")]
     public void ClearNetworkManager()

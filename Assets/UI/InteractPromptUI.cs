@@ -49,7 +49,11 @@ public class InteractPromptUI : MonoBehaviour
         if (playerSearchTimer <= 0f)
         {
             playerSearchTimer = 0.5f;
-            player = FindFirstObjectByType<PlayerInteraction>();
+
+            // MP'de iki oyuncu kopyası var — ipuçları yerel oyuncuyu izlesin
+            foreach (PlayerInteraction pi in
+                     FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+                if (pi.IsLocalPlayer) { player = pi; break; }
         }
         if (player == null) return;
     }
@@ -117,7 +121,9 @@ public class InteractPromptUI : MonoBehaviour
             case Processor:
                 stationName = "İşleme Masası";
                 bgColor     = processorColor;
-                ePrompt     = player.HeldObject != null ? "E: İşle" : "E: Al";
+                ePrompt     = TryGetNetStage(station, out int procStage)
+                    ? StagePrompt(procStage, "E: İşle", "İşleniyor...")
+                    : (player.HeldObject != null ? "E: İşle" : "E: Al");
                 break;
 
             case RobotChassis c:
@@ -145,13 +151,18 @@ public class InteractPromptUI : MonoBehaviour
             case WeaponCraftStation:
                 stationName = "Silah Atölyesi";
                 bgColor     = weaponCraftColor;
-                ePrompt     = player.HeldObject != null ? "E: Üret" : "E: Al";
+                ePrompt     = TryGetNetStage(station, out int craftStage)
+                    ? StagePrompt(craftStage, "E: Üret", "Üretiliyor...")
+                    : (player.HeldObject != null ? "E: Üret" : "E: Al");
                 break;
 
             case AssemblyStation assembly:
                 stationName = "Montaj İstasyonu";
                 bgColor     = assemblyColor;
-                ePrompt     = assembly.GetPromptText(player);
+                ePrompt     = TryGetNetStage(station, out int asmStage) &&
+                              asmStage != StationProgressSync.STAGE_IDLE
+                    ? StagePrompt(asmStage, "", "Montajlanıyor...")
+                    : assembly.GetPromptText(player);
                 break;
 
             case DroneConsole console:
@@ -183,6 +194,34 @@ public class InteractPromptUI : MonoBehaviour
 
         if (panelBackground != null) panelBackground.color = bgColor;
     }
+
+    /// <summary>
+    /// MP'de süreli istasyonların gerçek aşaması client'ta bayat —
+    /// StationProgressSync yayınından okunur. Offline'da false döner.
+    /// </summary>
+    private static bool TryGetNetStage(BaseStation station, out int stage)
+    {
+        stage = StationProgressSync.STAGE_IDLE;
+
+        if (Unity.Netcode.NetworkManager.Singleton == null ||
+            !Unity.Netcode.NetworkManager.Singleton.IsListening) return false;
+
+        if (!station.TryGetComponent<StationProgressSync>(out StationProgressSync sync))
+            return false;
+
+        stage = sync.Stage;
+        return true;
+    }
+
+    /// <summary>Aşamaya göre ipucu: boşta → verilen, çalışıyor → bekleme, hazır → al.</summary>
+    private string StagePrompt(int stage, string idlePrompt, string workingText)
+        => stage switch
+        {
+            StationProgressSync.STAGE_WORKING => workingText,
+            StationProgressSync.STAGE_READY   =>
+                player.HeldObject == null ? "E: Al" : "",
+            _ => player.HeldObject != null ? idlePrompt : ""
+        };
 
     /// <summary>
     /// Drone Konsolu ipucu: pencere kapalıysa geri sayım, açıksa sürüş çağrısı.

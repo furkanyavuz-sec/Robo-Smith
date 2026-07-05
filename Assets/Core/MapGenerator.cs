@@ -159,6 +159,12 @@ public class MapGenerator : MonoBehaviour
             if (chassis != null)
             {
                 chassisList.Add(chassis);
+
+                // MP Faz 2B: şasi durumunun client aynası (statlar, silahlar,
+                // zırh — RobotStatusUI/hologram iki tarafta da doğru gösterir)
+                if (chassis.GetComponent<ChassisSync>() == null)
+                    chassis.gameObject.AddComponent<ChassisSync>();
+
                 StationVisuals.DecorateChassis(chassis.gameObject,
                     $"Robot Şasisi {i + 1}", accent);
             }
@@ -701,6 +707,11 @@ public class MapGenerator : MonoBehaviour
         // NetworkObjectReference ile adresler (NetworkGameState deseni)
         if (obj.GetComponent<Unity.Netcode.NetworkObject>() == null)
             obj.AddComponent<Unity.Netcode.NetworkObject>();
+
+        // MP Faz 2B: süreli istasyonlarda ilerleme çubuğu senkronu
+        // (IProgressReporter olmayanlarda Awake kendini kapatır)
+        if (obj.GetComponent<StationProgressSync>() == null)
+            obj.AddComponent<StationProgressSync>();
 
         T comp = obj.GetComponent<T>();
         if (comp == null)

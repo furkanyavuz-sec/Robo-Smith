@@ -44,6 +44,12 @@ public class PlayerInteraction : NetworkBehaviour
     private bool IsMp =>
         NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
 
+    /// <summary>
+    /// Bu kopya yerel oyuncunun mu? UI'lar (zırh paneli, ipuçları) MP'de
+    /// yanlışlıkla rakibin kopyasına kilitlenmesin diye bunu kullanır.
+    /// </summary>
+    public bool IsLocalPlayer => !IsMp || (IsSpawned && IsOwner);
+
     public override void OnNetworkSpawn()
     {
         heldNv.OnValueChanged += OnHeldChanged;
@@ -267,6 +273,38 @@ public class PlayerInteraction : NetworkBehaviour
 
     [ServerRpc]
     private void DropServerRpc() => ForceDropFromStation();
+
+    // ── Zırh seçimi (ArmorSelectUI çağırır) ──────────────────────────────
+
+    /// <summary>Offline: doğrudan uygular; MP: server'a iletir (ChassisSync
+    /// aynası seçimi client'lara geri yayınlar).</summary>
+    public void RequestSetArmor(RobotChassis chassis, ArmorType armor)
+    {
+        if (chassis == null) return;
+
+        if (!IsMp)
+        {
+            chassis.SetArmor(armor);
+            return;
+        }
+
+        if (chassis.TryGetComponent<NetworkObject>(out NetworkObject no))
+            SetArmorServerRpc(no, (int)armor);
+    }
+
+    [ServerRpc]
+    private void SetArmorServerRpc(NetworkObjectReference chassisRef, int armor)
+    {
+        if (!chassisRef.TryGet(out NetworkObject chassisNo)) return;
+        if (!chassisNo.TryGetComponent<RobotChassis>(out RobotChassis chassis))
+            return;
+
+        // Zırh paneli 4 birim menzilde açılıyor — payıyla doğrula
+        if (Vector3.Distance(transform.position, chassisNo.transform.position)
+            > 6f) return;
+
+        chassis.SetArmor((ArmorType)armor);
+    }
     private bool TryInteractStation(RobotChassis.InteractMode chassisMode)
 {
     Collider[] hits = Physics.OverlapSphere(

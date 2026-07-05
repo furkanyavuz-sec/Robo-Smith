@@ -51,7 +51,7 @@ public class ArmorSelectUI : MonoBehaviour
         if (playerSearchTimer <= 0f)
         {
             playerSearchTimer = 0.5f;
-            player = FindFirstObjectByType<PlayerInteraction>();
+            player = FindLocalPlayer();
         }
         if (player == null) return;
     }
@@ -101,7 +101,8 @@ public class ArmorSelectUI : MonoBehaviour
 
         if (Keyboard.current.fKey.wasPressedThisFrame)
         {
-            activeChassis.SetArmor(armorTypes[selectedIndex]);
+            // Offline: direkt uygular; MP: ServerRpc ile server'a gider
+            player.RequestSetArmor(activeChassis, armorTypes[selectedIndex]);
             Debug.Log($"[ArmorSelectUI] Zirh secildi: {armorTypes[selectedIndex]}");
         }
     }
@@ -112,6 +113,15 @@ public class ArmorSelectUI : MonoBehaviour
             panelRoot.SetActive(false);
     }
 }
+
+    /// <summary>MP'de sahnede iki oyuncu kopyası var — yalnız yerel olanı al.</summary>
+    private PlayerInteraction FindLocalPlayer()
+    {
+        foreach (PlayerInteraction pi in
+                 FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+            if (pi.IsLocalPlayer) return pi;
+        return null;
+    }
 
     private void RefreshPanel()
 {

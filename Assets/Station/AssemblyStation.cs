@@ -7,9 +7,20 @@
 
 using UnityEngine;
 
-public class AssemblyStation : BaseStation
+public class AssemblyStation : BaseStation, IProgressReporter
 {
     private enum State { Empty, HoldingFirst, Assembling, Ready }
+
+    // ── IProgressReporter (StationProgressSync client bar'ı için) ────────
+    public int ProgressStage => state switch
+    {
+        State.Assembling => StationProgressSync.STAGE_WORKING,
+        State.Ready      => StationProgressSync.STAGE_READY,
+        _                => StationProgressSync.STAGE_IDLE
+    };
+    public float Progress01  => state == State.Assembling
+        ? 1f - (timer / assembleDuration) : 0f;
+    public float SecondsLeft => state == State.Assembling ? timer : 0f;
 
     [Header("Montaj Ayarları")]
     [SerializeField] private float      assembleDuration = 10f;

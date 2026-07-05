@@ -5,9 +5,20 @@
 
 using UnityEngine;
 
-public class WeaponCraftStation : BaseStation
+public class WeaponCraftStation : BaseStation, IProgressReporter
 {
     private enum State { Idle, Crafting, Ready }
+
+    // ── IProgressReporter (StationProgressSync client bar'ı için) ────────
+    public int ProgressStage => state switch
+    {
+        State.Crafting => StationProgressSync.STAGE_WORKING,
+        State.Ready    => StationProgressSync.STAGE_READY,
+        _              => StationProgressSync.STAGE_IDLE
+    };
+    public float Progress01  => state == State.Crafting
+        ? 1f - (timer / craftDuration) : 0f;
+    public float SecondsLeft => state == State.Crafting ? timer : 0f;
 
     [Header("Üretim Tarifi")]
     [SerializeField] private ItemType   inputType;          // Örn: ScrapMetal

@@ -261,4 +261,55 @@ public void InteractWithMode(PlayerInteraction player, InteractMode mode)
         currentPlates = currentPlasmas = currentChips = 0;
         CurrentState  = ChassisState.Idle;
     }
+
+    // ── MP Faz 2B: Client aynası ─────────────────────────────────────────
+
+    /// <summary>ChassisSync server tarafında sayaçları örneklemek için okur.</summary>
+    public (int plates, int plasmas, int chips) PartCounts =>
+        (currentPlates, currentPlasmas, currentChips);
+
+    /// <summary>
+    /// MP client: server'dan gelen şasi durumunu yerel kopyaya uygular.
+    /// RobotStatusUI, hologram, zırh paneli ve ipuçları bu kopyadan okur —
+    /// hepsi değişiklik gerektirmeden doğru veriyle çalışır.
+    /// </summary>
+    public void ApplyNetworkMirror(ChassisSync.State s)
+    {
+        statSheet.HP  = s.hp;
+        statSheet.ATK = s.atk;
+        statSheet.SPD = s.spd;
+        statSheet.DEF = s.def;
+
+        statSheet.equippedModule = (ModuleType)s.module;
+        statSheet.activeSynergy  = (SynergyBonus)s.synergy;
+        selectedArmor            = (ArmorType)s.armor;
+
+        currentPlates  = s.plates;
+        currentPlasmas = s.plasmas;
+        currentChips   = s.chips;
+
+        // Silah yuvalarını yeniden kur (görüntü amaçlı — savaş verisi server'da)
+        statSheet.equippedWeapons = new WeaponData[3];
+        statSheet.weaponCount     = 0;
+
+        MirrorWeapon(s.w0Type, s.w0Lvl, s.w0Prog);
+        MirrorWeapon(s.w1Type, s.w1Lvl, s.w1Prog);
+        MirrorWeapon(s.w2Type, s.w2Lvl, s.w2Prog);
+
+        ChassisPreviewBuilder.Rebuild(this);   // Hologram client'ta da güncellensin
+    }
+
+    private void MirrorWeapon(int type, int level, int progress)
+    {
+        if (type < 0) return;
+
+        WeaponData w = WeaponData.Create((ItemType)type);
+        if (w == null) return;
+
+        w.upgradeLevel    = level;
+        w.upgradeProgress = progress;
+
+        statSheet.equippedWeapons[statSheet.weaponCount] = w;
+        statSheet.weaponCount++;
+    }
 }

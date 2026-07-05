@@ -5,8 +5,19 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Processor : BaseStation
+public class Processor : BaseStation, IProgressReporter
 {
+    // ── IProgressReporter (StationProgressSync client bar'ı için) ────────
+    public int ProgressStage => currentState switch
+    {
+        State.Processing => StationProgressSync.STAGE_WORKING,
+        State.Ready      => StationProgressSync.STAGE_READY,
+        _                => StationProgressSync.STAGE_IDLE
+    };
+    public float Progress01  => currentState == State.Processing
+        ? 1f - (timer / currentDuration) : 0f;
+    public float SecondsLeft => currentState == State.Processing ? timer : 0f;
+
     // ── Durum Makinesi ───────────────────────────────────────────────────
     private enum State { Idle, Processing, Ready }
 

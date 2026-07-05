@@ -95,6 +95,33 @@ public static class StationVisuals
         Shader shader = rp != null ? rp.defaultShader : null;
         if (shader == null) shader = Shader.Find("Standard");
 
+#if UNITY_EDITOR
+        // Edit modunda (Generate Map vb.) materyal ASSET olarak kalıcılaşır.
+        // Bellek materyali sahneye gömülemez: sahne diskten başka bir editör
+        // süreci/build tarafından yüklenince referans kopar ve URP
+        // materyalsiz renderer'ı hiç çizmez → "görünmez harita" hatası.
+        if (!Application.isPlaying)
+        {
+            const string dir = "Assets/GeneratedMaterials";
+            if (!UnityEditor.AssetDatabase.IsValidFolder(dir))
+                UnityEditor.AssetDatabase.CreateFolder("Assets", "GeneratedMaterials");
+
+            string path = $"{dir}/mat_{ColorUtility.ToHtmlStringRGBA(color)}.mat";
+
+            Material asset = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (asset == null)
+            {
+                asset = new Material(shader) { color = color };
+                UnityEditor.AssetDatabase.CreateAsset(asset, path);
+            }
+
+            matCache[color] = asset;
+            return asset;
+        }
+#endif
+
+        // Runtime (arena robotları, mermiler, drone görselleri): bellek
+        // materyali yeterli — aynı oturumda üretilir ve kullanılır
         Material mat = new Material(shader) { color = color };
         matCache[color] = mat;
         return mat;

@@ -30,6 +30,11 @@ public void GenerateNetworkManager()
     // Transport'u NetworkManager'a bağla
     nm.NetworkConfig.NetworkTransport = transport;
 
+    // LAN oyunu: 60 tick — pozisyon senkronu sıklaşır, uzak oyuncunun
+    // ara doldurma (interpolasyon) mesafeleri kısalır, duvar köşesinden
+    // geçmiş gibi görünme artefaktı azalır (varsayılan 30 idi)
+    nm.NetworkConfig.TickRate = 60;
+
     // Player Prefab — Inspector boşsa asset'lerden kendimiz buluruz
     // (PlayerPrefab'sız NetworkManager oyuncu spawn edemez = gri ekran)
     if (playerPrefab == null)

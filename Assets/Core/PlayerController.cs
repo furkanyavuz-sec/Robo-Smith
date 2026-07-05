@@ -115,6 +115,11 @@ public class PlayerController : NetworkBehaviour
 
     private void Move()
     {
+        // Sigorta: kontrol bizdeyken rigidbody asla kinematik kalmamalı —
+        // kinematik MovePosition çarpışmaları atlar (duvardan geçme).
+        // (Lobby dondurması gibi geçiş durumları takılı kalırsa düzelir.)
+        if (rb.isKinematic) rb.isKinematic = false;
+
         if (moveDirection == Vector3.zero) return;
         Vector3 targetPosition = rb.position + moveDirection * moveSpeed * Time.fixedDeltaTime;
         rb.MovePosition(targetPosition);

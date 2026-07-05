@@ -12,42 +12,9 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-/// <summary>Dekor işareti: VisualThemeManager bu objelerin rengini ezmesin.</summary>
-public class StationDecorTag : MonoBehaviour { }
-
-/// <summary>Yüzen etiket — her karede kameraya döner. Sci-fi fontu runtime'da yükler.</summary>
-public class StationLabel : MonoBehaviour
-{
-    private static Camera cam;
-
-    private void Start()
-    {
-        // Fütüristik font (Audiowide) — runtime'da uygulanır, sahneye gömülmez
-        TMP_FontAsset font = DisplayFontApplier.GetFont();
-        if (font != null && TryGetComponent<TMP_Text>(out TMP_Text tmp))
-            tmp.font = font;
-    }
-
-    private void LateUpdate()
-    {
-        if (cam == null) cam = Camera.main;
-        if (cam == null) return;
-
-        transform.rotation = Quaternion.LookRotation(
-            transform.position - cam.transform.position);
-    }
-}
-
-/// <summary>Kaynak işaret küpü — yavaşça döner, dikkat çeker.</summary>
-public class BeaconSpin : MonoBehaviour
-{
-    [SerializeField] private float degreesPerSecond = 60f;
-
-    public void SetSpeed(float dps) => degreesPerSecond = dps;
-
-    private void Update() =>
-        transform.Rotate(0f, degreesPerSecond * Time.deltaTime, 0f, Space.World);
-}
+// NOT: StationDecorTag / StationLabel / BeaconSpin kendi dosyalarına taşındı
+// (MonoBehaviour sınıfı dosya adıyla eşleşmeli — aksi halde sahne kaydında
+// "references runtime script in scene file" uyarısı üretir).
 
 public static class StationVisuals
 {

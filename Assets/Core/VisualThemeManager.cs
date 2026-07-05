@@ -34,11 +34,26 @@ public class VisualThemeManager : MonoBehaviour
     private static readonly int PropGlossiness = Shader.PropertyToID("_Glossiness"); // Smoothness
     private static readonly int PropSmoothness = Shader.PropertyToID("_Smoothness"); // URP
 
+    // Oyuncu runtime'da spawn olur (OfflinePlayerSpawner / NGO — MP'de sahne
+    // geçişinden de geç gelebilir). Bulana kadar sessizce tekrar dener.
+    private bool  playerThemed;
+    private float playerSearchTimer;
+
     private void Start()
     {
         ApplyStationThemes();
-        ApplyPlayerTheme();
         ApplyItemThemes();
+    }
+
+    private void Update()
+    {
+        if (playerThemed) return;
+
+        playerSearchTimer -= Time.deltaTime;
+        if (playerSearchTimer > 0f) return;
+        playerSearchTimer = 0.5f;
+
+        ApplyPlayerTheme();
     }
 
     // ── İstasyon Renklendirme ────────────────────────────────────────────
@@ -84,16 +99,16 @@ public class VisualThemeManager : MonoBehaviour
 
     private void ApplyPlayerTheme()
     {
-        PlayerInteraction player =
-            FindAnyObjectByType<PlayerInteraction>();
+        // MP: iki oyuncu olabilir — bulunan herkese uygula
+        PlayerInteraction[] players =
+            FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None);
 
-        if (player == null)
-        {
-            Debug.LogWarning("[VisualTheme] PlayerInteraction bulunamadı.");
-            return;
-        }
+        if (players.Length == 0) return;   // Henüz spawn olmadı — tekrar denenir
 
-        ApplyColorToObject(player.gameObject, playerColor, 0.1f, 0.4f);
+        foreach (PlayerInteraction player in players)
+            ApplyColorToObject(player.gameObject, playerColor, 0.1f, 0.4f);
+
+        playerThemed = true;
     }
 
     // ── Item Renklendirme ────────────────────────────────────────────────

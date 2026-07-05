@@ -117,7 +117,8 @@ public class RobotStatusUI : MonoBehaviour
         else if (i == 0 && sheet.weaponCount == 0)
         {
             // Hiç silah yok — arenada savaşamaz, oyuncuyu uyar
-            weaponSlotTexts[i].text  = "⚠ Silah tak! (Silah Atölyesi)";
+            // (⚠ karakteri LiberationSans'ta yok — font uyarısı basıyordu)
+            weaponSlotTexts[i].text  = "! Silah tak! (Silah Atölyesi)";
             weaponSlotTexts[i].color = new Color(1f, 0.4f, 0.3f);
         }
         else

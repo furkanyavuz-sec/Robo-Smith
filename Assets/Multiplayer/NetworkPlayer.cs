@@ -29,6 +29,13 @@ public class NetworkPlayer : NetworkBehaviour
             CameraController.Instance.SetTarget(transform);
         }
 
+        // Lobby sahnesinde zemin yok — oyuncu sonsuz düşüşe geçmesin:
+        // oyun sahnesine yerleşene kadar fiziği dondur. (Düşüşte biriken
+        // hız, garaja ışınlamadan sonra oyuncuyu aşağı çekiyordu.)
+        if (SceneManager.GetActiveScene().name != GameSceneName &&
+            TryGetComponent<Rigidbody>(out Rigidbody ownRb))
+            ownRb.isKinematic = true;
+
         // MP Faz 1: takım garajında doğ (hareket owner-authoritative —
         // pozisyonu sahibi taşır). Lobby'de spawn olursak sahne geçişini
         // sceneLoaded aboneliği yakalar.
@@ -102,7 +109,7 @@ public class NetworkPlayer : NetworkBehaviour
             GameObject spawn = GameObject.Find(spawnName);
             if (spawn != null)
             {
-                transform.position = spawn.transform.position;
+                TeleportTo(spawn.transform.position);
                 Debug.Log($"[NetworkPlayer] Takım spawn'ına taşındı: {spawnName}");
                 yield break;
             }
@@ -111,5 +118,27 @@ public class NetworkPlayer : NetworkBehaviour
 
         Debug.LogWarning($"[NetworkPlayer] '{spawnName}' bulunamadı — " +
                          "haritayı Generate Map ile üretmeyi unutma.");
+
+        // Spawn yoksa bile oyuncuyu dondurulmuş bırakma — harita merkezine koy
+        TeleportTo(Vector3.up * 2f);
+    }
+
+    /// <summary>
+    /// Rigidbody'li güvenli ışınlama: lobby dondurması açılır, düşüşte
+    /// biriken hız sıfırlanır, fizik gövdesi transform'la birlikte taşınır
+    /// (yalnız transform taşımak fizik motorunun eski pozisyona/hıza geri
+    /// çekmesine yol açıyordu).
+    /// </summary>
+    private void TeleportTo(Vector3 pos)
+    {
+        if (TryGetComponent<Rigidbody>(out Rigidbody rb))
+        {
+            rb.isKinematic     = false;
+            rb.linearVelocity  = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.position        = pos;
+        }
+
+        transform.position = pos;
     }
 }

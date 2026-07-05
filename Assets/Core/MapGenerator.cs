@@ -697,6 +697,11 @@ public class MapGenerator : MonoBehaviour
         GameObject obj = Instantiate(prefab, MapPos(pos), Quaternion.identity, transform);
         obj.name = stationName;
 
+        // MP Faz 2: her istasyon in-scene NetworkObject — ServerRpc'ler
+        // NetworkObjectReference ile adresler (NetworkGameState deseni)
+        if (obj.GetComponent<Unity.Netcode.NetworkObject>() == null)
+            obj.AddComponent<Unity.Netcode.NetworkObject>();
+
         T comp = obj.GetComponent<T>();
         if (comp == null)
             Debug.LogError($"[MapGenerator] '{stationName}' prefabında " +

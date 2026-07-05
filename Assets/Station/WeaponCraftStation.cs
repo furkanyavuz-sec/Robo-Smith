@@ -67,11 +67,9 @@ public class WeaponCraftStation : BaseStation
             rb.useGravity  = false;
         }
 
+        // MP'de NetworkObject parent'lanamaz — yardımcı pozisyona sabitler
         if (displayPoint != null)
-        {
-            inputItem.transform.SetParent(displayPoint);
-            inputItem.transform.localPosition = Vector3.zero;
-        }
+            NetworkItem.PlaceAtAnchor(inputItem, displayPoint, Vector3.zero);
 
         timer = craftDuration;
         state = State.Crafting;

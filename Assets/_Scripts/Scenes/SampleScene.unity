@@ -27939,7 +27939,6 @@ GameObject:
   - component: {fileID: 1066567442}
   - component: {fileID: 1066567445}
   - component: {fileID: 1066567444}
-  - component: {fileID: 1066567443}
   m_Layer: 0
   m_Name: HeaderText
   m_TagString: Untagged
@@ -27966,18 +27965,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 380, y: 38}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1066567443
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1066567441}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1066567444
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -31328,7 +31315,6 @@ GameObject:
   - component: {fileID: 1206303477}
   - component: {fileID: 1206303480}
   - component: {fileID: 1206303479}
-  - component: {fileID: 1206303478}
   m_Layer: 0
   m_Name: StationNameText
   m_TagString: Untagged
@@ -31355,18 +31341,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 440, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1206303478
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1206303476}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1206303479
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -34026,7 +34000,6 @@ GameObject:
   - component: {fileID: 1277561738}
   - component: {fileID: 1277561741}
   - component: {fileID: 1277561740}
-  - component: {fileID: 1277561739}
   m_Layer: 0
   m_Name: PhaseText
   m_TagString: Untagged
@@ -34053,18 +34026,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -8}
   m_SizeDelta: {x: 280, y: 30}
   m_Pivot: {x: 0.5, y: 1}
---- !u!114 &1277561739
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1277561737}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1277561740
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -47713,7 +47674,6 @@ GameObject:
   - component: {fileID: 1739043428}
   - component: {fileID: 1739043431}
   - component: {fileID: 1739043430}
-  - component: {fileID: 1739043429}
   m_Layer: 0
   m_Name: TimerText
   m_TagString: Untagged
@@ -47740,18 +47700,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 4}
   m_SizeDelta: {x: 280, y: 68}
   m_Pivot: {x: 0.5, y: 0}
---- !u!114 &1739043429
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1739043427}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1739043430
 MonoBehaviour:
   m_ObjectHideFlags: 0

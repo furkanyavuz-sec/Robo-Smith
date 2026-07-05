@@ -24,9 +24,43 @@ public class PlayerInteraction : NetworkBehaviour
     // ── Public API (istasyonların eriştiği alanlar) ──
     public GameObject HeldObject => heldObject;
 
+    /// <summary>NetworkItem taşıma takibi için elin dünya konumu.</summary>
+    public Vector3 HoldPointPosition => holdPoint != null
+        ? holdPoint.position
+        : transform.position + Vector3.up * 1.2f;
+
     // Dahili durum
     private GameObject heldObject;
     private Rigidbody  heldRb;
+
+    // ── MP Faz 2: el durumu ağ senkronu ──────────────────────────────────
+    // Server yazar; tüm kopyalar (client UI/CanInteract kontrolleri dahil)
+    // heldObject işaretçisini buradan günceller.
+    private readonly NetworkVariable<NetworkObjectReference> heldNv =
+        new(default, NetworkVariableReadPermission.Everyone,
+                     NetworkVariableWritePermission.Server);
+
+    /// <summary>NGO oturumu aktif mi? (MP yol ayrımı)</summary>
+    private bool IsMp =>
+        NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+
+    public override void OnNetworkSpawn()
+    {
+        heldNv.OnValueChanged += OnHeldChanged;
+        OnHeldChanged(default, heldNv.Value);   // Geç katılan kopyalar için
+    }
+
+    public override void OnNetworkDespawn()
+    {
+        heldNv.OnValueChanged -= OnHeldChanged;
+        base.OnNetworkDespawn();
+    }
+
+    private void OnHeldChanged(NetworkObjectReference oldRef,
+        NetworkObjectReference newRef)
+    {
+        heldObject = newRef.TryGet(out NetworkObject no) ? no.gameObject : null;
+    }
 
     /// <summary>
     /// Offline modda her zaman true; multiplayer'da sadece objenin sahibi.
@@ -58,7 +92,8 @@ public class PlayerInteraction : NetworkBehaviour
     // Tab → zırh geçişi (ArmorSelectUI hallediyor)
     // F → zırh seçimi (ArmorSelectUI hallediyor)
 
-    if (heldObject != null)
+    // MP'de item parent'lanmaz — pozisyonu NetworkItem/NetworkTransform sürer
+    if (heldObject != null && !IsMp)
         LockToHoldPoint();
 }
 
@@ -67,9 +102,39 @@ public class PlayerInteraction : NetworkBehaviour
     // Böylece masanın önünde item da varsa öncelik masaya gider.
     private void HandleInteract(RobotChassis.InteractMode mode)
     {
+        if (IsMp) { HandleInteractMp(mode); return; }
+
         if (TryInteractStation(mode)) return;
         if (heldObject == null) TryPickup();
         else                    Drop();
+    }
+
+    /// <summary>
+    /// MP: kararları server verir. Client yalnız EN YAKIN hedefi bulup
+    /// RPC atar — istasyon durumları (cooldown, işleme aşaması) client'ta
+    /// bayat olduğundan CanInteract ön elemesi yapılmaz.
+    /// </summary>
+    private void HandleInteractMp(RobotChassis.InteractMode mode)
+    {
+        BaseStation station = FindClosestStation();
+        if (station != null &&
+            station.TryGetComponent<NetworkObject>(out NetworkObject sNo))
+        {
+            InteractStationServerRpc(sNo, (int)mode);
+            return;
+        }
+
+        if (heldObject == null)
+        {
+            GameObject item = FindClosestPickup();
+            if (item != null &&
+                item.TryGetComponent<NetworkObject>(out NetworkObject iNo))
+                PickupItemServerRpc(iNo);
+        }
+        else
+        {
+            DropServerRpc();
+        }
     }
 
     private void HandleInteractUpgrade()
@@ -82,14 +147,126 @@ public class PlayerInteraction : NetworkBehaviour
     foreach (Collider col in hits)
     {
         if (!col.TryGetComponent<RobotChassis>(out RobotChassis chassis)) continue;
+
+        if (IsMp)
+        {
+            // Uygunluk kararı server'da — sadece hedefi bildir
+            if (chassis.TryGetComponent<NetworkObject>(out NetworkObject cNo))
+            {
+                InteractStationServerRpc(cNo,
+                    (int)RobotChassis.InteractMode.UpgradeWeapon);
+                return;
+            }
+            continue;
+        }
+
         if (!chassis.CanInteractUpgrade(this)) continue;
 
         chassis.InteractWithMode(this, RobotChassis.InteractMode.UpgradeWeapon);
         return;
     }
 
-    Debug.Log("[PlayerInteraction] Q: Upgrade için uygun silah veya malzeme yok.");
+    if (!IsMp)
+        Debug.Log("[PlayerInteraction] Q: Upgrade için uygun silah veya malzeme yok.");
 }
+
+    // ── MP yardımcıları ──────────────────────────────────────────────────
+
+    private BaseStation FindClosestStation()
+    {
+        Collider[] hits = Physics.OverlapSphere(
+            transform.position, stationRadius, stationLayer);
+
+        BaseStation closest     = null;
+        float       closestDist = float.MaxValue;
+
+        foreach (Collider col in hits)
+        {
+            if (!col.TryGetComponent<BaseStation>(out BaseStation station)) continue;
+
+            float dist = Vector3.Distance(
+                transform.position, col.transform.position);
+            if (dist < closestDist) { closestDist = dist; closest = station; }
+        }
+        return closest;
+    }
+
+    private GameObject FindClosestPickup()
+    {
+        Collider[] hits = Physics.OverlapSphere(
+            transform.position, pickupRadius, pickupLayer,
+            QueryTriggerInteraction.Collide);
+
+        GameObject closest     = null;
+        float      closestDist = float.MaxValue;
+
+        foreach (Collider col in hits)
+        {
+            if (!col.TryGetComponent<PickupItem>(out _)) continue;
+
+            // Başkasının taşıdığı item yerden alınamaz
+            if (col.TryGetComponent<NetworkItem>(out NetworkItem ni) &&
+                ni.IsHeld) continue;
+
+            float dist = Vector3.Distance(
+                transform.position, col.transform.position);
+            if (dist < closestDist) { closestDist = dist; closest = col.gameObject; }
+        }
+        return closest;
+    }
+
+    // ── ServerRpc'ler — tüm ekonomi kararları server'da ──────────────────
+
+    [ServerRpc]
+    private void InteractStationServerRpc(NetworkObjectReference stationRef,
+        int mode)
+    {
+        if (!stationRef.TryGet(out NetworkObject stationNo)) return;
+        if (!stationNo.TryGetComponent<BaseStation>(out BaseStation station))
+            return;
+
+        // Mesafe doğrulaması — istemci ne iddia ederse etsin
+        if (Vector3.Distance(transform.position, stationNo.transform.position)
+            > stationRadius + 2f) return;
+
+        if (station is RobotChassis chassis)
+        {
+            var m = (RobotChassis.InteractMode)mode;
+
+            if (m == RobotChassis.InteractMode.UpgradeWeapon)
+            {
+                if (chassis.CanInteractUpgrade(this))
+                    chassis.InteractWithMode(this, m);
+            }
+            else if (chassis.CanInteractArmor(this))
+            {
+                chassis.InteractWithMode(this, m);
+            }
+            return;
+        }
+
+        if (station.CanInteract(this))
+            station.Interact(this);
+    }
+
+    [ServerRpc]
+    private void PickupItemServerRpc(NetworkObjectReference itemRef)
+    {
+        if (heldObject != null) return;
+        if (!itemRef.TryGet(out NetworkObject itemNo)) return;
+
+        if (Vector3.Distance(transform.position, itemNo.transform.position)
+            > pickupRadius + 2f) return;
+
+        // Aynı anda iki oyuncu kapmasın — server'da son kontrol
+        if (itemNo.TryGetComponent<NetworkItem>(out NetworkItem ni) && ni.IsHeld)
+            return;
+
+        PickupFromStation(itemNo.gameObject);
+    }
+
+    [ServerRpc]
+    private void DropServerRpc() => ForceDropFromStation();
     private bool TryInteractStation(RobotChassis.InteractMode chassisMode)
 {
     Collider[] hits = Physics.OverlapSphere(
@@ -136,6 +313,28 @@ public class PlayerInteraction : NetworkBehaviour
     {
         if (heldObject != null) return; // Güvenlik kontrolü
 
+        if (IsMp)
+        {
+            // Ekonomi server-authoritative: yalnız server el verir.
+            // İstasyonlar zaten server'da koşar (ServerRpc üzerinden).
+            if (!NetworkManager.Singleton.IsServer) return;
+
+            NetworkItem.EnsureSpawned(target);
+
+            heldObject = target;
+            heldRb     = target.GetComponent<Rigidbody>();
+
+            if (target.TryGetComponent<NetworkItem>(out NetworkItem ni))
+            {
+                ni.SetHolder(NetworkObject);   // Fizik/collider'ı da ayarlar
+                ni.SyncType();                 // İstasyon SetType'ı ağa yansısın
+            }
+
+            heldNv.Value = new NetworkObjectReference(
+                target.GetComponent<NetworkObject>());
+            return;
+        }
+
         heldObject = target;
         heldRb     = target.GetComponent<Rigidbody>();
 
@@ -155,6 +354,19 @@ public class PlayerInteraction : NetworkBehaviour
     public void ForceDropFromStation()
     {
         if (heldObject == null) return;
+
+        if (IsMp)
+        {
+            if (!NetworkManager.Singleton.IsServer) return;
+
+            if (heldObject.TryGetComponent<NetworkItem>(out NetworkItem ni))
+                ni.SetHolder(null);   // Fizik geri açılır, item yere düşer
+
+            heldObject   = null;
+            heldRb       = null;
+            heldNv.Value = default;
+            return;
+        }
 
         if (heldRb != null)
         {

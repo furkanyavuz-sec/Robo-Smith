@@ -858,7 +858,6 @@ GameObject:
   - component: {fileID: 181693423}
   - component: {fileID: 181693426}
   - component: {fileID: 181693425}
-  - component: {fileID: 181693424}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -885,18 +884,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 226, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &181693424
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 181693422}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &181693425
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3279,7 +3266,6 @@ GameObject:
   - component: {fileID: 694782500}
   - component: {fileID: 694782503}
   - component: {fileID: 694782502}
-  - component: {fileID: 694782501}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -3306,18 +3292,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 226, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &694782501
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 694782499}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &694782502
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6306,7 +6280,6 @@ GameObject:
   - component: {fileID: 1474108600}
   - component: {fileID: 1474108603}
   - component: {fileID: 1474108602}
-  - component: {fileID: 1474108601}
   m_Layer: 0
   m_Name: Title
   m_TagString: Untagged
@@ -6333,18 +6306,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -56}
   m_SizeDelta: {x: 900, y: 64}
   m_Pivot: {x: 0.5, y: 1}
---- !u!114 &1474108601
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1474108599}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1474108602
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -6896,7 +6857,6 @@ GameObject:
   - component: {fileID: 1598999577}
   - component: {fileID: 1598999580}
   - component: {fileID: 1598999579}
-  - component: {fileID: 1598999578}
   m_Layer: 0
   m_Name: PlayerCountText
   m_TagString: Untagged
@@ -6923,18 +6883,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: -344}
   m_SizeDelta: {x: 400, y: 36}
   m_Pivot: {x: 0.5, y: 1}
---- !u!114 &1598999578
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1598999576}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1598999579
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7327,7 +7275,6 @@ GameObject:
   - component: {fileID: 1789267405}
   - component: {fileID: 1789267408}
   - component: {fileID: 1789267407}
-  - component: {fileID: 1789267406}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -7354,18 +7301,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 396, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &1789267406
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1789267404}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &1789267407
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8118,7 +8053,6 @@ GameObject:
   - component: {fileID: 2018750495}
   - component: {fileID: 2018750498}
   - component: {fileID: 2018750497}
-  - component: {fileID: 2018750496}
   m_Layer: 0
   m_Name: Label
   m_TagString: Untagged
@@ -8145,18 +8079,6 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 226, y: 34}
   m_Pivot: {x: 0.5, y: 0.5}
---- !u!114 &2018750496
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 2018750494}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: c5e90066ab9b47042b762c36b879f4f8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::DisplayFontTag
 --- !u!114 &2018750497
 MonoBehaviour:
   m_ObjectHideFlags: 0

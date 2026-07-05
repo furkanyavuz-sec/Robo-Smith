@@ -175,16 +175,11 @@ public class AssemblyStation : BaseStation
         if (item.TryGetComponent<Collider>(out Collider col))
             col.isTrigger = true;
 
+        // MP'de NetworkObject parent'lanamaz — yardımcı pozisyona sabitler
         if (displayPoint != null)
-        {
-            item.transform.SetParent(displayPoint);
-            item.transform.localPosition = Vector3.zero;
-        }
+            NetworkItem.PlaceAtAnchor(item, displayPoint, Vector3.zero);
         else
-        {
-            item.transform.SetParent(transform);
-            item.transform.localPosition = Vector3.up * 1.2f;
-        }
+            NetworkItem.PlaceAtAnchor(item, transform, Vector3.up * 1.2f);
     }
 
     /// <summary>UI ipuçları için durum metni.</summary>

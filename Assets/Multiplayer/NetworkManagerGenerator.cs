@@ -55,9 +55,71 @@ public void GenerateNetworkManager()
 
     nmObj.AddComponent<DontDestroyHelper>();
 
-    Debug.Log("[NetworkManagerGenerator] ✅ NetworkManager oluşturuldu. " +
+    // MP Faz 2: item prefablarını ağa hazırla (NetworkObject + NetworkTransform
+    // + NetworkItem ekle, asset'i kaydet) ve runtime kayıt listesini bağla
+    GameObject[] itemPrefabs = PrepareItemPrefabs();
+    ItemPrefabRegistry registry = nmObj.AddComponent<ItemPrefabRegistry>();
+    UIFactory.SetField(registry, "itemPrefabs", itemPrefabs);
+
+    Debug.Log($"[NetworkManagerGenerator] ✅ NetworkManager oluşturuldu, " +
+              $"{itemPrefabs.Length} item prefabı ağa hazırlandı. " +
               "Sahneyi kaydet (Ctrl+S).");
 }
+
+    /// <summary>
+    /// PickupItem taşıyan TÜM prefabları bulur; eksikse NetworkObject +
+    /// NetworkTransform + NetworkItem ekleyip asset'i kaydeder.
+    /// Dönen liste ItemPrefabRegistry'ye bağlanır (runtime AddNetworkPrefab).
+    /// </summary>
+    private GameObject[] PrepareItemPrefabs()
+    {
+#if UNITY_EDITOR
+        var prepared = new System.Collections.Generic.List<GameObject>();
+
+        foreach (string guid in UnityEditor.AssetDatabase.FindAssets("t:Prefab"))
+        {
+            string path = UnityEditor.AssetDatabase.GUIDToAssetPath(guid);
+            GameObject asset =
+                UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path);
+
+            if (asset == null || asset.GetComponent<PickupItem>() == null)
+                continue;
+
+            GameObject root = UnityEditor.PrefabUtility.LoadPrefabContents(path);
+            bool changed = false;
+
+            if (root.GetComponent<NetworkObject>() == null)
+            {
+                root.AddComponent<NetworkObject>();
+                changed = true;
+            }
+            if (root.GetComponent<Unity.Netcode.Components.NetworkTransform>() == null)
+            {
+                root.AddComponent<Unity.Netcode.Components.NetworkTransform>();
+                changed = true;
+            }
+            if (root.GetComponent<NetworkItem>() == null)
+            {
+                root.AddComponent<NetworkItem>();
+                changed = true;
+            }
+
+            if (changed)
+            {
+                UnityEditor.PrefabUtility.SaveAsPrefabAsset(root, path);
+                Debug.Log($"[NetworkManagerGenerator] Ağa hazırlandı: {path}");
+            }
+
+            UnityEditor.PrefabUtility.UnloadPrefabContents(root);
+            prepared.Add(
+                UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(path));
+        }
+
+        return prepared.ToArray();
+#else
+        return new GameObject[0];
+#endif
+    }
 
     /// <summary>
     /// Ağ oyuncusu prefabını asset'lerde arar: NetworkObject'li olan

@@ -189,12 +189,9 @@ public class Processor : BaseStation
         if (item.TryGetComponent<Collider>(out Collider col))
             col.isTrigger = true;
 
+        // MP'de NetworkObject parent'lanamaz — yardımcı pozisyona sabitler
         if (itemDisplayPoint != null)
-        {
-            item.transform.SetParent(itemDisplayPoint);
-            item.transform.localPosition = Vector3.zero;
-            item.transform.localRotation = Quaternion.identity;
-        }
+            NetworkItem.PlaceAtAnchor(item, itemDisplayPoint, Vector3.zero);
     }
 
     private void UpdateProgressVisual(float progress)

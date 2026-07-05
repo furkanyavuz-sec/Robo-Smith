@@ -79,9 +79,11 @@ public class GameManager : MonoBehaviour
         {
             BeginArenaPhase();
         }
-        else if (scene.name == garageSceneName && currentPhase == GamePhase.GameOver)
+        else if (scene.name == garageSceneName)
         {
-            // Rematch / menüden yeni oyun: hazırlığı baştan başlat
+            // Garaj sahnesi HER yüklendiğinde maç temiz başlar (rematch,
+            // menüden yeni oyun, MP lobby'den geçiş). DontDestroyOnLoad'lu
+            // eski kopyanın bayat timer'ı yeni maça sızmasın.
             playerChassis = FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
 
             if (GameSettings.DifficultyChosen)
@@ -94,6 +96,13 @@ public class GameManager : MonoBehaviour
             }
 
             StartPreparation();
+        }
+        else
+        {
+            // Menü/lobby gibi oyun dışı sahne: maçı durdur — arka planda
+            // sayıp kullanıcıyı menüden arenaya çekmesin
+            matchStarted = false;
+            currentPhase = GamePhase.Lobby;
         }
     }
 

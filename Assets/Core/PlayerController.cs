@@ -62,6 +62,15 @@ public class PlayerController : NetworkBehaviour
 
     private void ReadInput()
     {
+        // MP: oyuncu lobby sahnesinde doğar, oyun sahnesine taşınır —
+        // Awake'te cache'lenen menü kamerası geçişte yok olur. Ölü/boş
+        // referansı her karede tazele (Unity'de destroyed obje == null).
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+            if (mainCamera == null) return;   // Sahnede henüz kamera yok
+        }
+
         var keyboard = Keyboard.current;
         var gamepad  = Gamepad.current;
 

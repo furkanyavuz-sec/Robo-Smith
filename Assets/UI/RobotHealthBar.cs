@@ -29,8 +29,15 @@ public class RobotHealthBar : MonoBehaviour
 
     private void LateUpdate()
     {
+        // Kamera sahne geçişinde yok olabilir — ölü referansı tazele
+        if (mainCam == null)
+        {
+            mainCam = Camera.main;
+            if (mainCam == null) return;
+        }
+
         // Billboard: bar her zaman kameraya baksın
-        if (barPivot != null && mainCam != null)
+        if (barPivot != null)
             barPivot.forward = mainCam.transform.forward;
     }
 

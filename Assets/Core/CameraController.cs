@@ -58,7 +58,7 @@ public class CameraController : MonoBehaviour
         // (OfflinePlayerSpawner spawn ettiğinde zaten SetTarget çağırır.)
         if (target == null)
         {
-            PlayerController pc = FindFirstObjectByType<PlayerController>();
+            PlayerController pc = FindAnyObjectByType<PlayerController>();
             if (pc != null) SetTarget(pc.transform);
         }
     }

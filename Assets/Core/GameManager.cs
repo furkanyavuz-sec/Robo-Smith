@@ -84,7 +84,7 @@ public class GameManager : MonoBehaviour
             // Garaj sahnesi HER yüklendiğinde maç temiz başlar (rematch,
             // menüden yeni oyun, MP lobby'den geçiş). DontDestroyOnLoad'lu
             // eski kopyanın bayat timer'ı yeni maça sızmasın.
-            playerChassis = FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
+            playerChassis = FindObjectsByType<RobotChassis>();
 
             if (GameSettings.DifficultyChosen)
                 difficulty = GameSettings.SelectedDifficulty;

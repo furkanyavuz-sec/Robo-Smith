@@ -52,7 +52,7 @@ public class DroneAIPilot : MonoBehaviour
 
         // Oyuncu drone'unu bul (kesme davranışı için)
         foreach (SupplyDrone d in FindObjectsByType<SupplyDrone>(
-                     FindObjectsSortMode.None))
+                     ))
             if (d.IsPlayerTeam) playerDrone = d;
     }
 

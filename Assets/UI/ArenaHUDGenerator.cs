@@ -253,7 +253,7 @@ public class ArenaHUDGenerator : MonoBehaviour
     private void WarnIfOutside<T>() where T : MonoBehaviour
     {
         foreach (T comp in FindObjectsByType<T>(
-                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+                     FindObjectsInactive.Include))
         {
             if (!comp.transform.IsChildOf(transform))
                 Debug.LogWarning($"[ArenaHUDGenerator] ⚠️ Eski {typeof(T).Name} bulundu: " +

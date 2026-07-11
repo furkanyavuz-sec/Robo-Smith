@@ -292,7 +292,7 @@ public class SupplyDrone : MonoBehaviour
         else
         {
             // Rakip teslimatı DirectorAI'ye stat olarak işlenir
-            FindFirstObjectByType<DirectorAI>()?.ReceiveDroneReward(item.Type);
+            FindAnyObjectByType<DirectorAI>()?.ReceiveDroneReward(item.Type);
             RaidAnnouncer.Show($"RAKİP DRONE {ItemName(item.Type)} KAÇIRDI!",
                 new Color(0.95f, 0.32f, 0.26f), 2.5f);
             Destroy(item.gameObject);

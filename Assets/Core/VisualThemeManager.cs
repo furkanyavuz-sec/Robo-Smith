@@ -101,7 +101,7 @@ public class VisualThemeManager : MonoBehaviour
     {
         // MP: iki oyuncu olabilir — bulunan herkese uygula
         PlayerInteraction[] players =
-            FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None);
+            FindObjectsByType<PlayerInteraction>();
 
         if (players.Length == 0) return;   // Henüz spawn olmadı — tekrar denenir
 

@@ -47,7 +47,7 @@ public static class UIFactory
 
     public static void EnsureEventSystem()
     {
-        if (Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() != null)
+        if (Object.FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() != null)
             return;
 
         GameObject es = new GameObject("EventSystem");

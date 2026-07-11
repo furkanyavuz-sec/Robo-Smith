@@ -1176,14 +1176,14 @@ public class MapGenerator : MonoBehaviour
 
     private void WireSceneReferences(List<RobotChassis> blueChassis, Transform blueSpawn)
     {
-        GameManager gm = FindFirstObjectByType<GameManager>();
+        GameManager gm = FindAnyObjectByType<GameManager>();
         if (gm != null && blueChassis.Count > 0)
         {
             UIFactory.SetField(gm, "playerChassis", blueChassis.ToArray());
             Debug.Log($"[MapGenerator] GameManager'a {blueChassis.Count} şasi bağlandı.");
         }
 
-        OfflinePlayerSpawner spawner = FindFirstObjectByType<OfflinePlayerSpawner>();
+        OfflinePlayerSpawner spawner = FindAnyObjectByType<OfflinePlayerSpawner>();
         if (spawner != null && blueSpawn != null)
         {
             UIFactory.SetField(spawner, "spawnPoint", blueSpawn);
@@ -1191,16 +1191,16 @@ public class MapGenerator : MonoBehaviour
         }
 
         RobotChassis[] allChassis =
-            FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
+            FindObjectsByType<RobotChassis>();
 
-        RobotStatusUI statusUI = FindFirstObjectByType<RobotStatusUI>();
+        RobotStatusUI statusUI = FindAnyObjectByType<RobotStatusUI>();
         if (statusUI != null)
         {
             UIFactory.SetField(statusUI, "chassisList", allChassis);
             Debug.Log("[MapGenerator] RobotStatusUI şasi listesi güncellendi.");
         }
 
-        ArmorSelectUI armorUI = FindFirstObjectByType<ArmorSelectUI>();
+        ArmorSelectUI armorUI = FindAnyObjectByType<ArmorSelectUI>();
         if (armorUI != null)
         {
             UIFactory.SetField(armorUI, "chassisList", blueChassis.ToArray());
@@ -1210,7 +1210,7 @@ public class MapGenerator : MonoBehaviour
 
     private void WarnAboutOrphanStations()
     {
-        foreach (BaseStation s in FindObjectsByType<BaseStation>(FindObjectsSortMode.None))
+        foreach (BaseStation s in FindObjectsByType<BaseStation>())
         {
             if (!s.transform.IsChildOf(transform))
                 Debug.LogWarning($"[MapGenerator] ⚠️ Haritaya ait olmayan eski istasyon: " +

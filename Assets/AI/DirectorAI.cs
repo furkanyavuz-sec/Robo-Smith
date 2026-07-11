@@ -52,7 +52,8 @@ public class DirectorAI : MonoBehaviour
         Difficulty.Hard => new DifficultyTuning
         {   // Eski "Normal" hız + tam stat + 3 silah + son robota modül
             speedMult = 1.0f, maxRobots = 3, weaponCount = 3, statMult = 1.0f,
-            moduleOnLastRobot = true
+            moduleOnLastRobot = true,
+            moduleOnAll = false   // Gelecek zorluk kademesi için ayrılmış ayar
         },
         _ => new DifficultyTuning
         {   // Normal: %50 yavaş üretim, %15 stat kesintisi, modül yok

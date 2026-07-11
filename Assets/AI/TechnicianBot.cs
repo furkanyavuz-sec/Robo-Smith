@@ -79,7 +79,7 @@ public class TechnicianBot : MonoBehaviour
         // Pencere bölgesindeki ham madde istasyonlarını ezberle (hasat için)
         if (ScrapWindowZone.Instance != null)
             foreach (ScrapyardStation s in
-                     FindObjectsByType<ScrapyardStation>(FindObjectsSortMode.None))
+                     FindObjectsByType<ScrapyardStation>())
                 if (ScrapWindowZone.Instance.IsInside(s.transform.position))
                     zoneStations.Add(s);
     }
@@ -250,7 +250,7 @@ public class TechnicianBot : MonoBehaviour
         RaidAnnouncer.Show($"RAKİP TEKNİSYEN MALZEME KAÇIRDI!",
             new Color(0.95f, 0.32f, 0.26f), 2f);
 
-        FindFirstObjectByType<DirectorAI>()?.ReceiveScrapDelivery();
+        FindAnyObjectByType<DirectorAI>()?.ReceiveScrapDelivery();
 
         Destroy(carried.gameObject);
         carried = null;
@@ -264,7 +264,7 @@ public class TechnicianBot : MonoBehaviour
         if (punchCooldown > 0f) return;
 
         foreach (PlayerInteraction pi in
-                 FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerInteraction>())
         {
             if (pi.HeldObject == null) continue;                 // Eli boşsa değmez
             if (!zone.IsInside(pi.transform.position)) continue; // Bölge dışı dokunulmaz

@@ -118,7 +118,7 @@ public class ArmorSelectUI : MonoBehaviour
     private PlayerInteraction FindLocalPlayer()
     {
         foreach (PlayerInteraction pi in
-                 FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerInteraction>())
             if (pi.IsLocalPlayer) return pi;
         return null;
     }

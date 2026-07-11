@@ -58,7 +58,7 @@ public static class Sfx
         source.playOnAwake  = false;
 
         // Sahnede dinleyici yoksa (kamera prefabında eksikse) sessiz kalmayalım
-        if (Object.FindFirstObjectByType<AudioListener>() == null)
+        if (Object.FindAnyObjectByType<AudioListener>() == null)
             go.AddComponent<AudioListener>();
     }
 

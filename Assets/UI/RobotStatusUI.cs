@@ -53,7 +53,7 @@ public class RobotStatusUI : MonoBehaviour
         if (playerSearchTimer <= 0f)
         {
             playerSearchTimer = 0.5f;
-            player = FindFirstObjectByType<PlayerInteraction>();
+            player = FindAnyObjectByType<PlayerInteraction>();
         }
     }
 

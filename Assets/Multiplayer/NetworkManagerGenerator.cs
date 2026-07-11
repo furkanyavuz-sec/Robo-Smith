@@ -166,7 +166,7 @@ public void GenerateNetworkManager()
         // Sahnedeki TÜM NetworkManager'lar (kökte kalanlar dahil) —
         // birden fazla kopya NGO'yu bozar, üretim hep tek kopyayla başlar
         foreach (NetworkManager nm in FindObjectsByType<NetworkManager>(
-                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+                     FindObjectsInactive.Include))
             DestroyImmediate(nm.gameObject);
     }
 }

@@ -52,7 +52,7 @@ public class InteractPromptUI : MonoBehaviour
 
             // MP'de iki oyuncu kopyası var — ipuçları yerel oyuncuyu izlesin
             foreach (PlayerInteraction pi in
-                     FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+                     FindObjectsByType<PlayerInteraction>())
                 if (pi.IsLocalPlayer) { player = pi; break; }
         }
         if (player == null) return;

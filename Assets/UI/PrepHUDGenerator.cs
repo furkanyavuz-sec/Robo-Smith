@@ -132,7 +132,7 @@ public class PrepHUDGenerator : MonoBehaviour
 
         // Sahnedeki şasileri otomatik bul ve bağla
         RobotChassis[] chassis =
-            FindObjectsByType<RobotChassis>(FindObjectsSortMode.None);
+            FindObjectsByType<RobotChassis>();
         UIFactory.SetField(ui, "chassisList", chassis);
         if (chassis.Length == 0)
             Debug.LogWarning("[PrepHUDGenerator] Sahnede RobotChassis bulunamadı — " +
@@ -187,7 +187,7 @@ public class PrepHUDGenerator : MonoBehaviour
         UIFactory.SetField(ui, "panelBackground",  header.GetComponent<Image>());
 
         // Station layer'ı sahnedeki bir istasyondan kopyala (elle ayar gerekmesin)
-        BaseStation anyStation = FindFirstObjectByType<BaseStation>();
+        BaseStation anyStation = FindAnyObjectByType<BaseStation>();
         int layerBits = anyStation != null ? 1 << anyStation.gameObject.layer : 0;
         UIFactory.SetField(ui, "stationLayer", (LayerMask)layerBits);
         if (anyStation == null)
@@ -210,7 +210,7 @@ public class PrepHUDGenerator : MonoBehaviour
     private void WarnIfOutside<T>() where T : MonoBehaviour
     {
         foreach (T comp in FindObjectsByType<T>(
-                     FindObjectsInactive.Include, FindObjectsSortMode.None))
+                     FindObjectsInactive.Include))
         {
             if (!comp.transform.IsChildOf(transform))
                 Debug.LogWarning($"[PrepHUDGenerator] ⚠️ Eski {typeof(T).Name} bulundu: " +

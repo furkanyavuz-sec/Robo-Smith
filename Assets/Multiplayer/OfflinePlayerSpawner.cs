@@ -19,7 +19,7 @@ public class OfflinePlayerSpawner : MonoBehaviour
             return;
 
         // Sahnede zaten bir oyuncu varsa ikinci kez spawn etme
-        if (FindFirstObjectByType<PlayerController>() != null) return;
+        if (FindAnyObjectByType<PlayerController>() != null) return;
 
         if (playerPrefab == null)
         {

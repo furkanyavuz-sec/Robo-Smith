@@ -47,8 +47,10 @@ public class PlayerInteraction : NetworkBehaviour
     /// <summary>
     /// Bu kopya yerel oyuncunun mu? UI'lar (zırh paneli, ipuçları) MP'de
     /// yanlışlıkla rakibin kopyasına kilitlenmesin diye bunu kullanır.
+    /// (new: NetworkBehaviour.IsLocalPlayer'ı bilinçli gizler — offline'da
+    /// da true dönmesi gerekiyor, taban üye yalnız ağda anlamlı.)
     /// </summary>
-    public bool IsLocalPlayer => !IsMp || (IsSpawned && IsOwner);
+    public new bool IsLocalPlayer => !IsMp || (IsSpawned && IsOwner);
 
     public override void OnNetworkSpawn()
     {

@@ -34,38 +34,38 @@ public class StationOrganizer : MonoBehaviour
     {
         var nameCounts = new Dictionary<string, int>();
 
-        foreach (SupplyBin bin in FindObjectsByType<SupplyBin>(FindObjectsSortMode.None))
+        foreach (SupplyBin bin in FindObjectsByType<SupplyBin>())
         {
             ItemType type = (ItemType)GetField(bin, "supplyItemType");
             Rename(bin.gameObject, $"Tedarik Kutusu - {TrName(type)}", nameCounts);
         }
 
-        foreach (ScrapyardStation s in FindObjectsByType<ScrapyardStation>(FindObjectsSortMode.None))
+        foreach (ScrapyardStation s in FindObjectsByType<ScrapyardStation>())
         {
             ItemType type = (ItemType)GetField(s, "supplyType");
             Rename(s.gameObject, $"Hurdalık - {TrName(type)}", nameCounts);
         }
 
-        foreach (WeaponCraftStation w in FindObjectsByType<WeaponCraftStation>(FindObjectsSortMode.None))
+        foreach (WeaponCraftStation w in FindObjectsByType<WeaponCraftStation>())
         {
             ItemType output = (ItemType)GetField(w, "outputWeaponType");
             ItemType input  = (ItemType)GetField(w, "inputType");
             Rename(w.gameObject, $"Silah Atölyesi - {TrName(output)} ({TrName(input)} ile)", nameCounts);
         }
 
-        foreach (Processor p in FindObjectsByType<Processor>(FindObjectsSortMode.None))
+        foreach (Processor p in FindObjectsByType<Processor>())
             Rename(p.gameObject, "İşleme Masası", nameCounts);
 
-        foreach (AssemblyStation a in FindObjectsByType<AssemblyStation>(FindObjectsSortMode.None))
+        foreach (AssemblyStation a in FindObjectsByType<AssemblyStation>())
             Rename(a.gameObject, "Montaj İstasyonu", nameCounts);
 
-        foreach (PlasmaSource p in FindObjectsByType<PlasmaSource>(FindObjectsSortMode.None))
+        foreach (PlasmaSource p in FindObjectsByType<PlasmaSource>())
             Rename(p.gameObject, "Plazma Kaynağı", nameCounts);
 
-        foreach (TrashBin t in FindObjectsByType<TrashBin>(FindObjectsSortMode.None))
+        foreach (TrashBin t in FindObjectsByType<TrashBin>())
             Rename(t.gameObject, "Çöp Kutusu", nameCounts);
 
-        foreach (RobotChassis c in FindObjectsByType<RobotChassis>(FindObjectsSortMode.None))
+        foreach (RobotChassis c in FindObjectsByType<RobotChassis>())
             Rename(c.gameObject, "Robot Şasisi", nameCounts);
     }
 
@@ -89,7 +89,7 @@ public class StationOrganizer : MonoBehaviour
 
     private void EnsureSupplyBins()
     {
-        SupplyBin[] bins = FindObjectsByType<SupplyBin>(FindObjectsSortMode.None);
+        SupplyBin[] bins = FindObjectsByType<SupplyBin>();
         if (bins.Length == 0)
         {
             Debug.LogError("[StationOrganizer] Sahnede hiç SupplyBin yok — " +
@@ -102,7 +102,7 @@ public class StationOrganizer : MonoBehaviour
             covered.Add((ItemType)GetField(bin, "supplyItemType"));
 
         // Ham Plazma, Plazma Kaynağı'ndan da gelebilir
-        if (FindObjectsByType<PlasmaSource>(FindObjectsSortMode.None).Length > 0)
+        if (FindObjectsByType<PlasmaSource>().Length > 0)
             covered.Add(ItemType.RawPlasma);
 
         SupplyBin template = bins[0];
@@ -163,7 +163,7 @@ public class StationOrganizer : MonoBehaviour
 
     private void SyncProcessorRecipes()
     {
-        Processor[] processors = FindObjectsByType<Processor>(FindObjectsSortMode.None);
+        Processor[] processors = FindObjectsByType<Processor>();
         if (processors.Length < 2) return;
 
         // Tüm işlemcilerdeki tariflerin birleşimi (inputType başına ilk bulunan)
@@ -204,7 +204,7 @@ public class StationOrganizer : MonoBehaviour
         // Hangi silahlar üretilebiliyor?
         var craftable = new HashSet<ItemType>();
         var craftInputs = new HashSet<ItemType>();
-        foreach (WeaponCraftStation w in FindObjectsByType<WeaponCraftStation>(FindObjectsSortMode.None))
+        foreach (WeaponCraftStation w in FindObjectsByType<WeaponCraftStation>())
         {
             craftable.Add((ItemType)GetField(w, "outputWeaponType"));
             craftInputs.Add((ItemType)GetField(w, "inputType"));
@@ -219,7 +219,7 @@ public class StationOrganizer : MonoBehaviour
 
         // Atölye girdilerinin kaynağı var mı?
         var scrapSources = new HashSet<ItemType>();
-        foreach (ScrapyardStation s in FindObjectsByType<ScrapyardStation>(FindObjectsSortMode.None))
+        foreach (ScrapyardStation s in FindObjectsByType<ScrapyardStation>())
             scrapSources.Add((ItemType)GetField(s, "supplyType"));
 
         foreach (ItemType input in craftInputs)

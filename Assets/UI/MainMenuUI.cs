@@ -42,7 +42,7 @@ public class MainMenuUI : MonoBehaviour
     private void Start()
     {
         // Lobby canvas'ını bul ve başlangıçta gizle — menü önde
-        LobbyUI lobby = FindFirstObjectByType<LobbyUI>(FindObjectsInactive.Include);
+        LobbyUI lobby = FindAnyObjectByType<LobbyUI>(FindObjectsInactive.Include);
         if (lobby != null)
         {
             lobbyCanvas = lobby.gameObject;

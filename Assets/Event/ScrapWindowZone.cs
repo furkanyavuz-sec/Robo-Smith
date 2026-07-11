@@ -315,13 +315,13 @@ public class ScrapWindowZone : MonoBehaviour
         }
 
         foreach (PlayerController pc in
-                 FindObjectsByType<PlayerController>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerController>())
         {
             if (!IsInside(pc.transform.position)) continue;
             pc.transform.position = blueEvictPoint + Vector3.up * 0.75f;
         }
 
-        TechnicianBot bot = FindFirstObjectByType<TechnicianBot>();
+        TechnicianBot bot = FindAnyObjectByType<TechnicianBot>();
         if (bot != null && IsInside(bot.transform.position))
             bot.transform.position = redEvictPoint + Vector3.up * 0.75f;
     }
@@ -330,7 +330,7 @@ public class ScrapWindowZone : MonoBehaviour
     private static PlayerInteraction FindLocalPlayer()
     {
         foreach (PlayerInteraction pi in
-                 FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerInteraction>())
             if (pi.IsLocalPlayer) return pi;
         return null;
     }
@@ -419,11 +419,11 @@ public class ScrapWindowZone : MonoBehaviour
         }
 
         foreach (PlayerController pc in
-                 FindObjectsByType<PlayerController>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerController>())
             if (IsInside(pc.transform.position))
                 lockedOccupants.Add(pc.transform);
 
-        TechnicianBot bot = FindFirstObjectByType<TechnicianBot>();
+        TechnicianBot bot = FindAnyObjectByType<TechnicianBot>();
         if (bot != null && IsInside(bot.transform.position))
             lockedOccupants.Add(bot.transform);
     }
@@ -456,7 +456,7 @@ public class ScrapWindowZone : MonoBehaviour
         if (blueDepotAnchor == null) return;
 
         foreach (PlayerInteraction pi in
-                 FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerInteraction>())
         {
             if (pi.HeldObject == null) continue;
             if (!IsInside(pi.transform.position)) continue;
@@ -579,7 +579,7 @@ public class ScrapWindowZone : MonoBehaviour
     /// <summary>Kırmızı depo → DirectorAI üretim hızlanmasına dönüşür.</summary>
     private void ConvertRedDepot()
     {
-        DirectorAI director = FindFirstObjectByType<DirectorAI>();
+        DirectorAI director = FindAnyObjectByType<DirectorAI>();
 
         foreach (PickupItem item in redDepot)
         {
@@ -626,7 +626,7 @@ public class ScrapWindowZone : MonoBehaviour
         meleeSetupTimer = 0.5f;
 
         foreach (PlayerController pc in
-                 FindObjectsByType<PlayerController>(FindObjectsSortMode.None))
+                 FindObjectsByType<PlayerController>())
         {
             if (pc.GetComponent<PlayerMelee>() == null)
                 pc.gameObject.AddComponent<PlayerMelee>();

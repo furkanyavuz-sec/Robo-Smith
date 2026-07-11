@@ -42,6 +42,13 @@ public class CameraController : MonoBehaviour
         {
             playerController = target.GetComponent<PlayerController>();
         }
+
+        // Yakın kırpma düzlemi: Unity varsayılanı 0.3 — FPV'de ve yakın
+        // çekimde ince kit mesh'lerinin içinden kesit alıyordu. 0.05 ile
+        // kamera yüzeye iyice yaklaşmadan hiçbir şey kırpılmaz.
+        Camera cam = GetComponent<Camera>();
+        if (cam == null) cam = Camera.main;
+        if (cam != null) cam.nearClipPlane = 0.05f;
     }
 
     private void Start()

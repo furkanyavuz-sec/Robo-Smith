@@ -37,6 +37,10 @@ public class MapTheme : ScriptableObject
     public GameObject consoleShell;   // Drone konsolu
     public GameObject plasmaShell;    // Plazma kaynağı
 
+    [Header("Kaideler")]
+    public GameObject stationBase;     // İstasyon kabuğu altı kaide plakası
+    public GameObject chassisPedestal; // Şasi sergi platformu
+
     [Header("Atmosfer")]
     public GameObject[] decorProps;   // Duvar diplerine serpiştirilen proplar
     public Material skybox;           // Sahne gökyüzü (RenderSettings.skybox)

@@ -36,9 +36,22 @@ public static class StationVisuals
         foreach (Renderer r in station.GetComponentsInChildren<Renderer>())
             r.enabled = false;
 
+        // Kaide plakası: makine yere "monte" dursun, ince duvar kabukları
+        // (konsol/dişli panelleri) havada kesilmiş gibi görünmesin
+        float baseTop = AddBasePlate(station,
+            theme.stationBase, footprint: 1.7f);
+
         GameObject shell = Object.Instantiate(shellPrefab, station.transform);
         shell.name = "Decor_Shell";
         shell.AddComponent<StationDecorTag>();
+
+        // Yüzünü harita merkezine dönder (garaj istasyonları kenarlarda —
+        // merkeze bakan konsol/makine oyuncuyu karşılar). Ters bakıyorsa
+        // buradaki yön işareti çevrilir.
+        Vector3 flat = station.transform.position; flat.y = 0f;
+        if (flat.sqrMagnitude > 0.25f)
+            shell.transform.rotation =
+                Quaternion.LookRotation(-flat.normalized);
 
         foreach (Collider c in shell.GetComponentsInChildren<Collider>())
         {
@@ -46,7 +59,7 @@ public static class StationVisuals
             else                       Object.DestroyImmediate(c);
         }
 
-        // İstasyon ayak izine uniform sığdır (~1.1 küp), tabana otur
+        // İstasyon ayak izine uniform sığdır, kaidenin üstüne otur
         Bounds b     = default;
         bool   first = true;
         foreach (Renderer r in shell.GetComponentsInChildren<Renderer>())
@@ -57,9 +70,9 @@ public static class StationVisuals
         if (first) return;
 
         float s = Mathf.Min(
-            1.15f / Mathf.Max(b.size.x, 0.01f),
-            1.60f / Mathf.Max(b.size.y, 0.01f),
-            1.15f / Mathf.Max(b.size.z, 0.01f));
+            1.35f / Mathf.Max(b.size.x, 0.01f),
+            1.90f / Mathf.Max(b.size.y, 0.01f),
+            1.35f / Mathf.Max(b.size.z, 0.01f));
         shell.transform.localScale *= s;
 
         b = default; first = true;
@@ -71,7 +84,56 @@ public static class StationVisuals
 
         Vector3 ground = station.transform.position;
         shell.transform.position += new Vector3(
+            ground.x - b.center.x, baseTop - b.min.y, ground.z - b.center.z);
+    }
+
+    /// <summary>
+    /// İstasyon/şasi altına kit kaide plakası. Dönüş: plaka üst yüzünün
+    /// dünya y'si (üstüne oturtma için; plaka yoksa zemin y'si).
+    /// </summary>
+    public static float AddBasePlate(GameObject station, GameObject platePrefab,
+        float footprint)
+    {
+        Vector3 ground = station.transform.position;
+        if (theme == null || platePrefab == null) return ground.y;
+
+        GameObject plate = Object.Instantiate(platePrefab, station.transform);
+        plate.name = "Decor_Base";
+        plate.AddComponent<StationDecorTag>();
+
+        foreach (Collider c in plate.GetComponentsInChildren<Collider>())
+        {
+            if (Application.isPlaying) Object.Destroy(c);
+            else                       Object.DestroyImmediate(c);
+        }
+
+        Bounds b     = default;
+        bool   first = true;
+        foreach (Renderer r in plate.GetComponentsInChildren<Renderer>())
+        {
+            if (first) { b = r.bounds; first = false; }
+            else         b.Encapsulate(r.bounds);
+        }
+        if (first) return ground.y;
+
+        // Ayak izine sığdır ama YASSI kalsın (kaide, kutu değil)
+        float s = Mathf.Min(
+            footprint / Mathf.Max(b.size.x, 0.01f),
+            0.30f     / Mathf.Max(b.size.y, 0.01f),
+            footprint / Mathf.Max(b.size.z, 0.01f));
+        plate.transform.localScale *= s;
+
+        b = default; first = true;
+        foreach (Renderer r in plate.GetComponentsInChildren<Renderer>())
+        {
+            if (first) { b = r.bounds; first = false; }
+            else         b.Encapsulate(r.bounds);
+        }
+
+        plate.transform.position += new Vector3(
             ground.x - b.center.x, ground.y - b.min.y, ground.z - b.center.z);
+
+        return ground.y + b.size.y;
     }
 
     // ── Merkezi içerik paleti ────────────────────────────────────────────
@@ -288,6 +350,12 @@ public static class StationVisuals
     public static void DecorateChassis(GameObject station, string label, Color teamAccent)
     {
         if (station == null) return;
+
+        // Sergi platformu — robot montaj görselleri (silah/zırh/hologram)
+        // OLDUĞU GİBİ kalır, sadece altına kit kaidesi gelir
+        if (theme != null)
+            AddBasePlate(station, theme.chassisPedestal, footprint: 2.4f);
+
         AddUnderGlow(station, teamAccent);
         AddLabel(station, label, teamAccent, 2.6f);
     }

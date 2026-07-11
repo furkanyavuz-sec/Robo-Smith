@@ -175,6 +175,10 @@ public class MapGenerator : MonoBehaviour
         t.consoleShell   = LoadKitPrefab("Walls/Wall_Console_01_Half");
         t.plasmaShell    = LoadKitPrefab("Stuff/Pipes_01");
 
+        // Kaideler — istasyon makineleri ve şasiler sergi plakasına oturur
+        t.stationBase     = LoadKitPrefab("Floors/Floor_Coin_01_Small");
+        t.chassisPedestal = LoadKitPrefab("Floors/Floor_Coin_01_Small");
+
         // Atmosfer
         t.decorProps = new[]
         {

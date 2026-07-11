@@ -119,6 +119,65 @@ public class MapGenerator : MonoBehaviour
                              "Map'e çift tıkla veya pozisyonu Reset'le ve tekrar üret.");
     }
 
+#if UNITY_EDITOR
+    // ── SciFi tema bağlayıcısı ───────────────────────────────────────────
+    // 3D Scifi Kit Starter Kit (Creepy_Cat) prefablarından MapTheme asset'i
+    // üretir/günceller ve bu generator'a bağlar. Kit klasörü gitignore'da —
+    // kit importlu olmayan makinede alanlar null kalır, harita primitife düşer.
+
+    private const string KitPrefabRoot =
+        "Assets/Creepy_Cat/3D Scifi Kit Starter Kit_HD/Prefabs/";
+    private const string ThemeAssetPath = "Assets/SciFiMapTheme.asset";
+
+    [ContextMenu("Wire SciFi Theme")]
+    private void WireSciFiTheme()
+    {
+        MapTheme t = UnityEditor.AssetDatabase
+            .LoadAssetAtPath<MapTheme>(ThemeAssetPath);
+        if (t == null)
+        {
+            t = ScriptableObject.CreateInstance<MapTheme>();
+            UnityEditor.AssetDatabase.CreateAsset(t, ThemeAssetPath);
+        }
+
+        t.floorTile = LoadKitPrefab("Floors/Floor_Squared_01_6x6");
+        t.wallPanel = LoadKitPrefab("Walls/Wall_Cube_01_Flat");
+        t.pillar    = LoadKitPrefab("Walls/Column_01_Big");
+        t.crate     = LoadKitPrefab("Props/Crate_01");
+
+        // barrierDoor BİLİNÇLİ boş: enerji bariyeri (yarı saydam renkli
+        // duvar) oyun okunabilirliği taşıyor — "kırmızı = girme". Kit
+        // çitleri denemek istersek: Fences/Fence_Long_01.
+
+        // Dekor serpme henüz generator'da yok — ilk görsel turdan sonra
+        t.decorProps = new[]
+        {
+            LoadKitPrefab("Stuff/Pipes_01"),
+            LoadKitPrefab("Stuff/Intercom_01"),
+            LoadKitPrefab("Props/Airing_01"),
+        };
+
+        UnityEditor.EditorUtility.SetDirty(t);
+
+        theme = t;
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.AssetDatabase.SaveAssets();
+
+        Debug.Log("[MapGenerator] ✅ SciFi tema bağlandı (SciFiMapTheme.asset). " +
+                  "Şimdi Generate Map çalıştır + Ctrl+S.");
+    }
+
+    private static GameObject LoadKitPrefab(string relativePath)
+    {
+        GameObject p = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(
+            KitPrefabRoot + relativePath + ".prefab");
+        if (p == null)
+            Debug.LogWarning("[MapGenerator] Kit prefabı bulunamadı: " +
+                             relativePath + " — bu parça primitif kalacak.");
+        return p;
+    }
+#endif
+
     // ── Garaj (takım bölgesi) ────────────────────────────────────────────
 
     private List<RobotChassis> BuildGarage(float centerX, int sign, string zone,

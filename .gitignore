@@ -13,3 +13,7 @@ UserSettings/
 .DS_Store
 *.apk
 *.unitypackage
+
+# 3D SciFi Kit (1.2GB) — repoya girmez, her makine Asset Store'dan indirir
+Assets/Creepy_Cat/
+Assets/Creepy_Cat.meta

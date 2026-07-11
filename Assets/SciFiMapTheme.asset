@@ -1,0 +1,36 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 69f54571af81232419dda54226c422a2, type: 3}
+  m_Name: SciFiMapTheme
+  m_EditorClassIdentifier: Assembly-CSharp::MapTheme
+  floorTile: {fileID: 100002, guid: be50ff3ed2fbe44349a64d3ac5fb98ee, type: 3}
+  scrapFloorTile: {fileID: 133728, guid: e1e43b751e1c847fcb7618aace293dfc, type: 3}
+  platformFloor: {fileID: 105372, guid: 96813c9f002664a49a7eecde95994b75, type: 3}
+  depotBase: {fileID: 193604, guid: 2504b53e39a2545538e6b5f5573f2bf3, type: 3}
+  wallPanel: {fileID: 100014, guid: ac93356612ce24c718977a61ed7246de, type: 3}
+  pillar: {fileID: 100002, guid: c046375e7bf1c42cdac74810855eae68, type: 3}
+  barrierFence: {fileID: 100002, guid: 9bbcc483cff204c6ca6b74652840294e, type: 3}
+  crate: {fileID: 121674, guid: 031729a7ef10c4aa1b5e0060c2f63acd, type: 3}
+  supplyShell: {fileID: 121674, guid: 031729a7ef10c4aa1b5e0060c2f63acd, type: 3}
+  processorShell: {fileID: 145162, guid: 8bb10558cac674d6b80301b2a954ed67, type: 3}
+  weaponShell: {fileID: 123358, guid: 94aa6bb10a2084bbb842e5fe1b92578f, type: 3}
+  assemblyShell: {fileID: 165224, guid: 818e532131a9a4d9ab96846c72c25182, type: 3}
+  trashShell: {fileID: 140360, guid: d8b78681a0006415a824f4e6273244dd, type: 3}
+  consoleShell: {fileID: 163594, guid: 0bb9da675ed6e4cd4829f553f9ae44f1, type: 3}
+  plasmaShell: {fileID: 116224, guid: f1887002f23e24e58b1f34d5fd95affb, type: 3}
+  stationBase: {fileID: 193604, guid: 2504b53e39a2545538e6b5f5573f2bf3, type: 3}
+  chassisPedestal: {fileID: 193604, guid: 2504b53e39a2545538e6b5f5573f2bf3, type: 3}
+  decorProps:
+  - {fileID: 115006, guid: 2b1f8fdab10f140829c5de88421a018d, type: 3}
+  - {fileID: 107586, guid: 84fb110a1f7914dcda0bac2733a6a949, type: 3}
+  - {fileID: 113950, guid: be523d7c447344ad7a4b2ee1c2588fb3, type: 3}
+  skybox: {fileID: 2100000, guid: 359b2cc48aa7c4f23a749d883a644ec9, type: 2}

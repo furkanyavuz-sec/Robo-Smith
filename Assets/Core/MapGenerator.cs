@@ -72,13 +72,17 @@ public class MapGenerator : MonoBehaviour
     {
         ClearMap();
 
+        // Tema istasyon kabuklarına da işlesin (Decorate* çağrılarından önce)
+        StationVisuals.SetTheme(theme);
+
         totalWidth  = garageWidth * 2f + ScrapyardWidth;
         teamACenter = -(garageWidth + ScrapyardWidth) / 2f;
         teamBCenter =  (garageWidth + ScrapyardWidth) / 2f;
 
         // Zeminler
         CreateFloor("Zemin - Mavi Garaj",    teamACenter, garageWidth,    blueFloor);
-        CreateFloor("Zemin - Hurdalık",      0f,          ScrapyardWidth, neutralFloor);
+        CreateFloor("Zemin - Hurdalık",      0f,          ScrapyardWidth, neutralFloor,
+            HasTheme ? theme.scrapFloorTile : null);
         CreateFloor("Zemin - Kırmızı Garaj", teamBCenter, garageWidth,    redFloor);
 
         CreateWalls();
@@ -105,6 +109,14 @@ public class MapGenerator : MonoBehaviour
 
         // MP Faz 3: etkinlik bölgesi saat/durum senkronu + olay relay'i
         netState.AddComponent<EventZoneSync>();
+
+        // Atmosfer: duvar dibi dekorları + kit gökyüzü
+        if (HasTheme)
+        {
+            BuildWallDecor();
+            if (theme.skybox != null)
+                RenderSettings.skybox = theme.skybox;
+        }
 
         WireSceneReferences(blueChassis, blueSpawn);
         WarnAboutOrphanStations();
@@ -140,22 +152,40 @@ public class MapGenerator : MonoBehaviour
             UnityEditor.AssetDatabase.CreateAsset(t, ThemeAssetPath);
         }
 
-        t.floorTile = LoadKitPrefab("Floors/Floor_Squared_01_6x6");
-        t.wallPanel = LoadKitPrefab("Walls/Wall_Cube_01_Flat");
-        t.pillar    = LoadKitPrefab("Walls/Column_01_Big");
-        t.crate     = LoadKitPrefab("Props/Crate_01");
+        // Zeminler — bölge başına farklı doku (garaj/hurdalık/platform)
+        t.floorTile      = LoadKitPrefab("Floors/Floor_Squared_01_6x6");
+        t.scrapFloorTile = LoadKitPrefab("Floors/Floor_Squared_02_6x6");
+        t.platformFloor  = LoadKitPrefab("Floors/Floor_Pipes_01");
+        t.depotBase      = LoadKitPrefab("Floors/Floor_Coin_01_Small");
 
-        // barrierDoor BİLİNÇLİ boş: enerji bariyeri (yarı saydam renkli
-        // duvar) oyun okunabilirliği taşıyor — "kırmızı = girme". Kit
-        // çitleri denemek istersek: Fences/Fence_Long_01.
+        // Duvar & bariyer
+        t.wallPanel    = LoadKitPrefab("Walls/Wall_Simple_01_Long");
+        t.pillar       = LoadKitPrefab("Walls/Column_01_Big");
+        t.barrierFence = LoadKitPrefab("Fences/Fence_Long_01");
 
-        // Dekor serpme henüz generator'da yok — ilk görsel turdan sonra
+        // Proplar
+        t.crate = LoadKitPrefab("Props/Crate_01");
+
+        // İstasyon kabukları — gövde kit'ten, neon renk dili üstünde kalır
+        t.supplyShell    = LoadKitPrefab("Props/Crate_01");
+        t.processorShell = LoadKitPrefab("Walls/Wall_Gear_01_Half");
+        t.weaponShell    = LoadKitPrefab("Walls/Wall_Gear_02_Half");
+        t.assemblyShell  = LoadKitPrefab("Walls/Wall_Table_01");
+        t.trashShell     = LoadKitPrefab("Props/Airing_01");
+        t.consoleShell   = LoadKitPrefab("Walls/Wall_Console_01_Half");
+        t.plasmaShell    = LoadKitPrefab("Stuff/Pipes_01");
+
+        // Atmosfer
         t.decorProps = new[]
         {
-            LoadKitPrefab("Stuff/Pipes_01"),
+            LoadKitPrefab("Stuff/Pipes_02"),
             LoadKitPrefab("Stuff/Intercom_01"),
-            LoadKitPrefab("Props/Airing_01"),
+            LoadKitPrefab("Stuff/Air_Grid_01"),
         };
+        t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
+            "Assets/Creepy_Cat/3D Scifi Kit Starter Kit_HD/Textures/Skybox/Skybox.mat");
+        if (t.skybox == null)
+            Debug.LogWarning("[MapGenerator] Kit skybox materyali bulunamadı.");
 
         UnityEditor.EditorUtility.SetDirty(t);
 
@@ -452,12 +482,22 @@ public class MapGenerator : MonoBehaviour
         Vector3 center = new Vector3(0f, 0f, coreZ);
 
         // Platform zemini
-        GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        floor.name = "Çekirdek Platform Zemini";
-        floor.transform.SetParent(transform);
-        floor.transform.position   = MapPos(new Vector3(0f, -0.5f, coreZ));
-        floor.transform.localScale = new Vector3(CoreZoneWidth, 1f, CoreZoneDepth);
-        ApplyColor(floor, neutralFloor);
+        if (HasTheme && theme.platformFloor != null)
+        {
+            FillBox(theme.platformFloor, "Çekirdek Platform Zemini",
+                MapPos(new Vector3(0f, -0.5f, coreZ)),
+                new Vector3(CoreZoneWidth, 1f, CoreZoneDepth),
+                keepCollider: true, stretchY: false);
+        }
+        else
+        {
+            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            floor.name = "Çekirdek Platform Zemini";
+            floor.transform.SetParent(transform);
+            floor.transform.position   = MapPos(new Vector3(0f, -0.5f, coreZ));
+            floor.transform.localScale = new Vector3(CoreZoneWidth, 1f, CoreZoneDepth);
+            ApplyColor(floor, neutralFloor);
+        }
 
         // Neon çerçeve + köşe direkleri — çekirdek bölge kimliği
         CreatePad("Çekirdek Çerçeve (ön)",
@@ -524,15 +564,24 @@ public class MapGenerator : MonoBehaviour
         anchor.transform.SetParent(transform);
         anchor.transform.position = MapPos(pos);
 
-        // Taban plakası
-        GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        plate.name = "Taban";
-        plate.transform.SetParent(anchor.transform, false);
-        plate.transform.localPosition = new Vector3(0f, 0.06f, 0f);
-        plate.transform.localScale    = new Vector3(2.2f, 0.12f, 2.2f);
-        if (plate.TryGetComponent<Collider>(out Collider pc))
-            DestroyImmediate(pc);
-        ApplyColor(plate, Color.Lerp(accent, Color.black, 0.35f));
+        // Taban plakası — temalıysa kit modülü (yuvarlak küçük zemin)
+        if (HasTheme && theme.depotBase != null)
+        {
+            GameObject kitBase = Instantiate(theme.depotBase, anchor.transform);
+            kitBase.name = "Taban";
+            FitToFootprint(kitBase, anchor.transform.position, 2.4f, 0.5f);
+        }
+        else
+        {
+            GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plate.name = "Taban";
+            plate.transform.SetParent(anchor.transform, false);
+            plate.transform.localPosition = new Vector3(0f, 0.06f, 0f);
+            plate.transform.localScale    = new Vector3(2.2f, 0.12f, 2.2f);
+            if (plate.TryGetComponent<Collider>(out Collider pc))
+                DestroyImmediate(pc);
+            ApplyColor(plate, Color.Lerp(accent, Color.black, 0.35f));
+        }
 
         // Köşe direkleri
         for (int x = -1; x <= 1; x += 2)
@@ -560,12 +609,28 @@ public class MapGenerator : MonoBehaviour
     private Transform CreateBarrier(string barrierName, Vector3 pos, Vector3 scale,
         bool keepCollider = false)
     {
-        if (HasTheme && theme.barrierDoor != null)
+        if (HasTheme && theme.barrierFence != null)
         {
-            // Zone yöneticileri container'ı gömer/kaldırır — parçalar child
-            return FillBox(theme.barrierDoor, barrierName,
+            // Zone yöneticileri container'ı gömer/kaldırır — parçalar child.
+            // Çit native yükseklikte y'de istiflenir (esnetme çirkinliği yok)
+            Transform box = FillBox(theme.barrierFence, barrierName,
                 MapPos(new Vector3(pos.x, scale.y / 2f, pos.z)), scale,
-                keepCollider, stretchY: true);
+                keepCollider, stretchY: false, stackY: true);
+
+            // Enerji kimliği korunur: tepede barrierColor ışık şeridi —
+            // "renkli hat = kapalı bölge" dili kit görseliyle birleşir
+            GameObject strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            strip.name = $"{barrierName} (enerji)";
+            strip.transform.SetParent(box, worldPositionStays: false);
+            strip.transform.localPosition = new Vector3(0f, scale.y / 2f + 0.06f, 0f);
+            strip.transform.localScale    = new Vector3(
+                Mathf.Max(scale.x * 0.98f, 0.14f), 0.10f,
+                Mathf.Max(scale.z * 0.98f, 0.14f));
+            if (strip.TryGetComponent<Collider>(out Collider sc))
+                DestroyImmediate(sc);
+            ApplyColor(strip, barrierColor);
+
+            return box;
         }
 
         GameObject barrier = GameObject.CreatePrimitive(PrimitiveType.Cube);
@@ -685,7 +750,7 @@ public class MapGenerator : MonoBehaviour
     /// (bariyer animasyonu gibi hareket ettirilecek şeyler için).
     /// </summary>
     private Transform FillBox(GameObject module, string boxName, Vector3 center,
-        Vector3 size, bool keepCollider, bool stretchY)
+        Vector3 size, bool keepCollider, bool stretchY, bool stackY = false)
     {
         GameObject container = new GameObject(boxName);
         container.transform.SetParent(transform);
@@ -705,9 +770,13 @@ public class MapGenerator : MonoBehaviour
 
         int nx = Mathf.Max(1, Mathf.RoundToInt(size.x / eff.x));
         int nz = Mathf.Max(1, Mathf.RoundToInt(size.z / eff.z));
+        // stackY: kutu yüksekliğini native ölçüde sıralarla doldur (çit
+        // bariyeri gibi) — stretchY tek parçayı y'de esnetir
+        int ny = stackY ? Mathf.Max(1, Mathf.RoundToInt(size.y / eff.y)) : 1;
 
-        Vector3 cell   = new Vector3(size.x / nx, size.y, size.z / nz);
-        float   yScale = stretchY ? size.y / m.y : 1f;
+        Vector3 cell   = new Vector3(size.x / nx, size.y / ny, size.z / nz);
+        float   yScale = stretchY ? size.y / m.y
+                       : stackY  ? cell.y / m.y : 1f;
         Vector3 pieceScale = rotate
             ? new Vector3(cell.z / m.x, yScale, cell.x / m.z)
             : new Vector3(cell.x / m.x, yScale, cell.z / m.z);
@@ -716,6 +785,7 @@ public class MapGenerator : MonoBehaviour
 
         for (int ix = 0; ix < nx; ix++)
         for (int iz = 0; iz < nz; iz++)
+        for (int iy = 0; iy < ny; iy++)
         {
             GameObject piece = Instantiate(module, container.transform);
             piece.transform.rotation = rotate
@@ -723,11 +793,14 @@ public class MapGenerator : MonoBehaviour
             piece.transform.localScale =
                 Vector3.Scale(piece.transform.localScale, pieceScale);
 
-            // Hedef hücre merkezi (y: esneyense kutu merkezi, değilse üst
-            // yüze native yükseklikle otur)
+            // Hedef hücre merkezi (y: esneyen/istiflenende hücre merkezi,
+            // değilse üst yüze native yükseklikle otur)
+            float cellY = stretchY ? center.y
+                        : stackY  ? center.y - size.y / 2f + cell.y * (iy + 0.5f)
+                                  : top - m.y * 0.5f;
             Vector3 cellCenter = new Vector3(
                 center.x - size.x / 2f + cell.x * (ix + 0.5f),
-                stretchY ? center.y : top - m.y * 0.5f,
+                cellY,
                 center.z - size.z / 2f + cell.z * (iz + 0.5f));
 
             // Pivot nerede olursa olsun bounds merkezini hücreye getir
@@ -757,14 +830,94 @@ public class MapGenerator : MonoBehaviour
     /// yapılır — kısmi doldurulmuş tema desteklenir)</summary>
     private bool HasTheme => theme != null;
 
+    /// <summary>
+    /// Sahnedeki kit objesini ayak izine uniform sığdır, tabanını yere otur,
+    /// collider'larını kapat (dekor takılma yapmasın). Pivot farkı bounds
+    /// merkeziyle düzeltilir.
+    /// </summary>
+    private static void FitToFootprint(GameObject obj, Vector3 groundPos,
+        float footprint, float maxHeight)
+    {
+        Bounds b     = default;
+        bool   first = true;
+        foreach (Renderer r in obj.GetComponentsInChildren<Renderer>())
+        {
+            if (first) { b = r.bounds; first = false; }
+            else         b.Encapsulate(r.bounds);
+        }
+        if (first) return;
+
+        float s = Mathf.Min(
+            footprint / Mathf.Max(b.size.x, 0.01f),
+            footprint / Mathf.Max(b.size.z, 0.01f),
+            maxHeight / Mathf.Max(b.size.y, 0.01f));
+        obj.transform.localScale *= s;
+
+        // Ölçek sonrası bounds'u yeniden ölç, merkezle ve tabana otur
+        b = default; first = true;
+        foreach (Renderer r in obj.GetComponentsInChildren<Renderer>())
+        {
+            if (first) { b = r.bounds; first = false; }
+            else         b.Encapsulate(r.bounds);
+        }
+        obj.transform.position += new Vector3(
+            groundPos.x - b.center.x,
+            groundPos.y - b.min.y,
+            groundPos.z - b.center.z);
+
+        foreach (Collider c in obj.GetComponentsInChildren<Collider>())
+        {
+            if (Application.isPlaying) Destroy(c);
+            else                       DestroyImmediate(c);
+        }
+    }
+
+    /// <summary>
+    /// Atmosfer dekoru: dış duvarların iç yüzü boyunca kit propları
+    /// (borular, interkomlar...) dönüşümlü serpilir. Collider'sız —
+    /// oynanışa dokunmaz. Yönleri harita içine bakar.
+    /// </summary>
+    private void BuildWallDecor()
+    {
+        if (theme.decorProps == null || theme.decorProps.Length == 0) return;
+
+        float halfD    = garageDepth / 2f;
+        float mapLeft  = teamACenter - garageWidth / 2f;
+        float mapRight = teamBCenter + garageWidth / 2f;
+        int   i = 0;
+
+        for (float x = mapLeft + 4f; x < mapRight - 3f; x += 9f, i++)
+        {
+            // Arka duvar iç yüzü (+z'ye bakar) / ön duvar iç yüzü (-z'ye bakar)
+            PlaceDecor(theme.decorProps[i % theme.decorProps.Length],
+                new Vector3(x, 0f, -halfD + 0.45f), 0f);
+            PlaceDecor(theme.decorProps[(i + 1) % theme.decorProps.Length],
+                new Vector3(x + 4.5f, 0f, halfD - 0.45f), 180f);
+        }
+    }
+
+    private void PlaceDecor(GameObject prefab, Vector3 pos, float yaw)
+    {
+        if (prefab == null) return;
+
+        GameObject obj = Instantiate(prefab, transform);
+        obj.name = $"Dekor - {prefab.name}";
+        obj.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        FitToFootprint(obj, MapPos(pos), 2.2f, 2.6f);
+    }
+
     // ── Zemin, Duvar & Dekor Primitifleri ────────────────────────────────
 
-    private void CreateFloor(string floorName, float centerX, float width, Color color)
+    private void CreateFloor(string floorName, float centerX, float width,
+        Color color, GameObject tileOverride = null)
     {
-        if (HasTheme && theme.floorTile != null)
+        GameObject tile = tileOverride != null ? tileOverride
+            : HasTheme ? theme.floorTile : null;
+
+        if (HasTheme && tile != null)
         {
             // Primitif küple aynı kutu: üst yüz y=0, altı dolgu
-            FillBox(theme.floorTile, floorName,
+            FillBox(tile, floorName,
                 MapPos(new Vector3(centerX, -0.5f, 0f)),
                 new Vector3(width, 1f, garageDepth),
                 keepCollider: true, stretchY: false);

@@ -1,31 +1,43 @@
-// MapTheme.cs — Sci-Fi kit görsel teması
-// Görev: MapGenerator'ın primitif görsellerinin yerine geçecek kit
-//   prefablarını tek asset'te toplar. Bir alan BOŞSA generator o parça
-//   için primitife düşer — kit importlu olmayan makinede veya tema
-//   atanmadan harita aynen eskisi gibi kurulur (MP dahil hiçbir oynanış
-//   collider'ı temadan etkilenmez; kit modüllerinin collider'ları kapatılır).
-// Kurulum: ThemeWirer (kit import edilince yazılacak) asset'i üretip
-//   doldurur ve MapGenerator.theme alanına bağlar; sonra Generate Map.
+// MapTheme.cs — Sci-Fi kit görsel teması (tam kapsam)
+// Görev: Haritanın TÜM görünür öğelerinin kit karşılıklarını tek asset'te
+//   toplar: mimari (zemin/duvar/bariyer), istasyon gövdeleri (kabuklar),
+//   depo/platform ve dekor. Bir alan BOŞSA generator o parça için eski
+//   primitife düşer — kit importlu olmayan makinede harita aynen kurulur.
+// Oynanış collider'ları temadan etkilenmez: kit modüllerinin collider'ları
+//   kapatılır, fizik container BoxCollider'larında / istasyon prefabında kalır.
+// Kurulum: MapGenerator sağ tık > Wire SciFi Theme doldurur ve bağlar.
 
 using UnityEngine;
 
 [CreateAssetMenu(fileName = "SciFiMapTheme", menuName = "RoboSmith/Map Theme")]
 public class MapTheme : ScriptableObject
 {
-    [Header("Mimari Modüller (boş alan = primitif fallback)")]
-    public GameObject floorTile;      // Zemin karosu — x/z'de döşenir
-    public GameObject wallPanel;      // Düz duvar paneli — uzun eksende döşenir
+    [Header("Zeminler (boş alan = primitif fallback)")]
+    public GameObject floorTile;      // Garaj zemini — x/z'de döşenir
+    public GameObject scrapFloorTile; // Hurdalık zemini (farklı doku)
+    public GameObject platformFloor;  // Çekirdek bölge platformu
+    public GameObject depotBase;      // Takım deposu taban plakası
+
+    [Header("Duvar & Bariyer")]
+    public GameObject wallPanel;      // Dış duvar paneli — uzun eksende döşenir
     public GameObject pillar;         // Sütun/direk
-    public GameObject barrierDoor;    // Enerji bariyeri / kapı görseli
+    public GameObject barrierFence;   // Zone bariyeri — y'de istiflenir,
+                                      // tepesine barrierColor enerji şeridi eklenir
+
+    [Header("Proplar")]
     public GameObject crate;          // Hurdalık kasası
 
-    [Header("İstasyon Kabukları (görsel gövde — etkileşim collider'ı bizde)")]
-    public GameObject supplyShell;
-    public GameObject processorShell;
-    public GameObject assemblyShell;
-    public GameObject trashShell;
-    public GameObject consoleShell;
+    [Header("İstasyon Kabukları (gövdeyi değiştirir; neon çerçeve/etiket/")]
+    // beacon renk dili aynen kalır — hangi istasyon ne üretiyor okunur)
+    public GameObject supplyShell;    // Tedarik + hurdalık kutuları
+    public GameObject processorShell; // İşleme masası
+    public GameObject weaponShell;    // Silah atölyeleri
+    public GameObject assemblyShell;  // Montaj istasyonu
+    public GameObject trashShell;     // Çöp kutusu
+    public GameObject consoleShell;   // Drone konsolu
+    public GameObject plasmaShell;    // Plazma kaynağı
 
-    [Header("Dekor (duvar kenarlarına serpiştirilecek proplar)")]
-    public GameObject[] decorProps;
+    [Header("Atmosfer")]
+    public GameObject[] decorProps;   // Duvar diplerine serpiştirilen proplar
+    public Material skybox;           // Sahne gökyüzü (RenderSettings.skybox)
 }

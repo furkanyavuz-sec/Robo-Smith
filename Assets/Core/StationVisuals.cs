@@ -18,6 +18,62 @@ using UnityEngine.Rendering;
 
 public static class StationVisuals
 {
+    // ── Görsel tema (Sci-Fi kit) ─────────────────────────────────────────
+    // MapGenerator, Generate Map başında atar. Kabuk atanmış istasyonlarda
+    // prefabın primitif gövdesi gizlenir (collider/etkileşim aynen kalır),
+    // yerine kit modülü istasyon ayak izine sığdırılır. Neon çerçeve/etiket/
+    // beacon renk dili DEĞİŞMEZ — hangi istasyon ne üretiyor okunur kalır.
+
+    private static MapTheme theme;
+
+    public static void SetTheme(MapTheme t) => theme = t;
+
+    private static void ApplyShell(GameObject station, GameObject shellPrefab)
+    {
+        if (theme == null || shellPrefab == null || station == null) return;
+
+        // Mevcut gövde görsellerini gizle — collider'lara dokunma
+        foreach (Renderer r in station.GetComponentsInChildren<Renderer>())
+            r.enabled = false;
+
+        GameObject shell = Object.Instantiate(shellPrefab, station.transform);
+        shell.name = "Decor_Shell";
+        shell.AddComponent<StationDecorTag>();
+
+        foreach (Collider c in shell.GetComponentsInChildren<Collider>())
+        {
+            if (Application.isPlaying) Object.Destroy(c);
+            else                       Object.DestroyImmediate(c);
+        }
+
+        // İstasyon ayak izine uniform sığdır (~1.1 küp), tabana otur
+        Bounds b     = default;
+        bool   first = true;
+        foreach (Renderer r in shell.GetComponentsInChildren<Renderer>())
+        {
+            if (first) { b = r.bounds; first = false; }
+            else         b.Encapsulate(r.bounds);
+        }
+        if (first) return;
+
+        float s = Mathf.Min(
+            1.15f / Mathf.Max(b.size.x, 0.01f),
+            1.60f / Mathf.Max(b.size.y, 0.01f),
+            1.15f / Mathf.Max(b.size.z, 0.01f));
+        shell.transform.localScale *= s;
+
+        b = default; first = true;
+        foreach (Renderer r in shell.GetComponentsInChildren<Renderer>())
+        {
+            if (first) { b = r.bounds; first = false; }
+            else         b.Encapsulate(r.bounds);
+        }
+
+        Vector3 ground = station.transform.position;
+        shell.transform.position += new Vector3(
+            ground.x - b.center.x, ground.y - b.min.y, ground.z - b.center.z);
+    }
+
     // ── Merkezi içerik paleti ────────────────────────────────────────────
     // VisualThemeManager'daki item renkleriyle aynı dil — kutu rengi,
     // içindeki item'ın rengiyle eşleşir, oyuncu ezberler.
@@ -101,6 +157,8 @@ public static class StationVisuals
         if (station == null) return;
         Color c = ItemColor(content);
 
+        ApplyShell(station, theme ? theme.supplyShell : null);
+
         // Neon kasa çerçevesi — içerik renginde
         AddTechFrame(station, c);
         AddUnderGlow(station, c);
@@ -113,7 +171,9 @@ public static class StationVisuals
         if (station == null) return;
         Color c = ItemColor(content);
 
-        // Hurda yığını — içerik renginde eğik küpler
+        ApplyShell(station, theme ? theme.supplyShell : null);
+
+        // Hurda yığını — içerik renginde eğik küpler (kasadan taşar: dolu his)
         Primitive(station, PrimitiveType.Cube,
             new Vector3(-0.35f, 0.55f,  0.25f), Vector3.one * 0.45f, c,
             new Vector3(15f, 25f, 10f));
@@ -137,6 +197,8 @@ public static class StationVisuals
         Color weaponColor = ItemColor(output);
         Color inputColor  = ItemColor(input);
 
+        ApplyShell(station, theme ? theme.weaponShell : null);
+
         // Tabela: silah renginde dikey levha
         Primitive(station, PrimitiveType.Cube,
             new Vector3(0f, 1.35f, -0.55f),
@@ -159,6 +221,8 @@ public static class StationVisuals
         if (station == null) return;
         Color orange = new Color(0.90f, 0.40f, 0.05f);
 
+        ApplyShell(station, theme ? theme.processorShell : null);
+
         // Baca — işleme makinesi kimliği
         Primitive(station, PrimitiveType.Cylinder,
             new Vector3(0.35f, 1.35f, -0.35f),
@@ -174,6 +238,8 @@ public static class StationVisuals
     {
         if (station == null) return;
         Color purple = new Color(0.55f, 0.25f, 0.95f);
+
+        ApplyShell(station, theme ? theme.assemblyShell : null);
 
         // Birleşme sembolü: iki küp üst üste, hafif çapraz
         Primitive(station, PrimitiveType.Cube,
@@ -195,6 +261,7 @@ public static class StationVisuals
     public static void DecorateTrashBin(GameObject station)
     {
         if (station == null) return;
+        ApplyShell(station, theme ? theme.trashShell : null);
         AddTechFrame(station, new Color(0.45f, 0.45f, 0.50f), cornerPosts: false);
         AddUnderGlow(station, new Color(0.35f, 0.35f, 0.38f));
         AddLabel(station, "Çöp Kutusu", new Color(0.55f, 0.55f, 0.55f));
@@ -204,6 +271,8 @@ public static class StationVisuals
     {
         if (station == null) return;
         Color c = ItemColor(ItemType.RawPlasma);
+
+        ApplyShell(station, theme ? theme.plasmaShell : null);
 
         // Enerji sütunu — parlak sarı kapsül
         Primitive(station, PrimitiveType.Capsule,
@@ -249,6 +318,8 @@ public static class StationVisuals
     public static void DecorateDroneConsole(GameObject station, Color teamAccent)
     {
         if (station == null) return;
+
+        ApplyShell(station, theme ? theme.consoleShell : null);
 
         // Anten — konsol kimliği (drone'la haberleşme hissi)
         Primitive(station, PrimitiveType.Cylinder,

@@ -492,6 +492,9 @@ public class MapGenerator : MonoBehaviour
                 MapPos(new Vector3(0f, -0.5f, coreZ)),
                 new Vector3(CoreZoneWidth, 1f, CoreZoneDepth),
                 keepCollider: true, stretchY: false);
+            AddFloorSlab("Çekirdek Platform Zemini",
+                MapPos(new Vector3(0f, -0.5f, coreZ)),
+                new Vector3(CoreZoneWidth, 1f, CoreZoneDepth));
         }
         else
         {
@@ -835,6 +838,34 @@ public class MapGenerator : MonoBehaviour
     private bool HasTheme => theme != null;
 
     /// <summary>
+    /// Karo döşemesinin altını dolu güverteyle kapatır. Kit karoları ince
+    /// ve TEK YÜZLÜ — altları boş kalırsa kamera yüzeyin altına kayınca
+    /// harita "kaybolur" (arka yüz çizilmez). Dolgu, kutunun tabanından
+    /// karoların hemen altına kadar çıkar; yandan bakışta koyu istasyon
+    /// güvertesi gibi görünür.
+    /// </summary>
+    private void AddFloorSlab(string floorName, Vector3 boxCenter, Vector3 boxSize)
+    {
+        GameObject slab = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        slab.name = $"{floorName} (dolgu)";
+        slab.transform.SetParent(transform);
+
+        // Kutu üstünün 0.25 altında biter — karo kalınlığıyla çakışmaz
+        float slabHeight = boxSize.y - 0.25f;
+        slab.transform.position = new Vector3(
+            boxCenter.x,
+            boxCenter.y - boxSize.y / 2f + slabHeight / 2f,
+            boxCenter.z);
+        slab.transform.localScale = new Vector3(boxSize.x, slabHeight, boxSize.z);
+
+        // Fizik container'ın BoxCollider'ında — dolgu salt görsel
+        if (slab.TryGetComponent<Collider>(out Collider col))
+            DestroyImmediate(col);
+
+        ApplyColor(slab, wallTone);
+    }
+
+    /// <summary>
     /// Sahnedeki kit objesini ayak izine uniform sığdır, tabanını yere otur,
     /// collider'larını kapat (dekor takılma yapmasın). Pivot farkı bounds
     /// merkeziyle düzeltilir.
@@ -920,11 +951,14 @@ public class MapGenerator : MonoBehaviour
 
         if (HasTheme && tile != null)
         {
-            // Primitif küple aynı kutu: üst yüz y=0, altı dolgu
+            // Primitif küple aynı kutu: üst yüz y=0, karolar üstte
             FillBox(tile, floorName,
                 MapPos(new Vector3(centerX, -0.5f, 0f)),
                 new Vector3(width, 1f, garageDepth),
                 keepCollider: true, stretchY: false);
+            AddFloorSlab(floorName,
+                MapPos(new Vector3(centerX, -0.5f, 0f)),
+                new Vector3(width, 1f, garageDepth));
             return;
         }
 

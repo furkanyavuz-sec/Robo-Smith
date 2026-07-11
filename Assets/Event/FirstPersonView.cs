@@ -46,6 +46,9 @@ public class FirstPersonView : MonoBehaviour
 
     private void LateUpdate()
     {
+        // MP: FPV yalnız kendi oyuncumuzda — uzak kopya kamerayı çalmasın
+        if (interaction != null && !interaction.IsLocalPlayer) return;
+
         if (cam == null) cam = Camera.main;
         if (cam == null) return;
 

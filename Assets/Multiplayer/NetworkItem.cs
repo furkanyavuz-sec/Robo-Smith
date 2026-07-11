@@ -22,6 +22,16 @@ public class NetworkItem : NetworkBehaviour
         new(default, NetworkVariableReadPermission.Everyone,
                      NetworkVariableWritePermission.Server);
 
+    // Faz 3: etkinlik huzmesi (typeNv'den SONRA tanımlı — renk için tip
+    // önce gelsin) ve depo kilidi (rakip E ile alamaz)
+    private readonly NetworkVariable<bool> beamNv =
+        new(false, NetworkVariableReadPermission.Everyone,
+                   NetworkVariableWritePermission.Server);
+
+    private readonly NetworkVariable<bool> lockedNv =
+        new(false, NetworkVariableReadPermission.Everyone,
+                   NetworkVariableWritePermission.Server);
+
     private PickupItem pickup;
     private Rigidbody  rb;
 
@@ -31,6 +41,9 @@ public class NetworkItem : NetworkBehaviour
 
     /// <summary>Bu item'ı şu an biri taşıyor mu? (server yazar, herkes okur)</summary>
     public bool IsHeld => holderNv.Value.TryGet(out _);
+
+    /// <summary>Depo kilidi — kilitliyken hiçbir oyuncu alamaz.</summary>
+    public bool Locked => IsSpawned && lockedNv.Value;
 
     private void Awake()
     {
@@ -57,21 +70,55 @@ public class NetworkItem : NetworkBehaviour
         else
         {
             ApplyType(typeNv.Value);
+            ApplyBeam(beamNv.Value);
+            ApplyLocked(lockedNv.Value);
 
             // Client fizik simüle etmez — pozisyon NetworkTransform'dan gelir
             if (rb != null) rb.isKinematic = true;
         }
 
-        typeNv.OnValueChanged += OnTypeChanged;
+        typeNv.OnValueChanged   += OnTypeChanged;
+        beamNv.OnValueChanged   += OnBeamChanged;
+        lockedNv.OnValueChanged += OnLockedChanged;
     }
 
     public override void OnNetworkDespawn()
     {
-        typeNv.OnValueChanged -= OnTypeChanged;
+        typeNv.OnValueChanged   -= OnTypeChanged;
+        beamNv.OnValueChanged   -= OnBeamChanged;
+        lockedNv.OnValueChanged -= OnLockedChanged;
         base.OnNetworkDespawn();
     }
 
     private void OnTypeChanged(int oldValue, int newValue) => ApplyType(newValue);
+
+    private void OnBeamChanged(bool oldValue, bool newValue)
+    {
+        if (!IsServer) ApplyBeam(newValue);   // Server kendi huzmesini yönetir
+    }
+
+    private void OnLockedChanged(bool oldValue, bool newValue)
+    {
+        if (!IsServer) ApplyLocked(newValue);
+    }
+
+    private void ApplyBeam(bool on)
+    {
+        Transform beam = transform.Find("Beam");
+        if (on && beam == null)
+            StationVisuals.AddLootBeam(gameObject,
+                StationVisuals.ItemColor(pickup.Type));
+        else if (!on && beam != null)
+            Destroy(beam.gameObject);
+    }
+
+    private void ApplyLocked(bool locked)
+    {
+        // Kilitli item client'ta hedeflenemesin (FindClosestPickup collider
+        // taramasıyla çalışır) — server zaten reddeder, bu UX içindir
+        if (TryGetComponent<Collider>(out Collider col))
+            col.enabled = !locked;
+    }
 
     private void ApplyType(int value)
     {
@@ -117,16 +164,35 @@ public class NetworkItem : NetworkBehaviour
         if (IsServer && IsSpawned) typeNv.Value = (int)pickup.Type;
     }
 
+    /// <summary>Server: etkinlik huzmesi aç/kapa (client'lar aynalar).
+    /// Offline'da sessiz no-op — zone'lar huzmeyi zaten lokal kurar.</summary>
+    public void SetBeam(bool on)
+    {
+        if (!IsMp || !NetworkManager.Singleton.IsServer) return;
+        EnsureSpawned(gameObject);
+        if (IsSpawned) beamNv.Value = on;
+    }
+
+    /// <summary>Server: depo kilidi — kilitliyken PickupItemServerRpc reddeder.</summary>
+    public void SetLocked(bool locked)
+    {
+        if (!IsMp || !NetworkManager.Singleton.IsServer) return;
+        if (IsSpawned) lockedNv.Value = locked;
+    }
+
     private void Update()
     {
         // Taşıma takibi yalnız server'da — NetworkTransform yayınlar
         if (!IsSpawned || !IsServer) return;
         if (!holderNv.Value.TryGet(out NetworkObject holder)) return;
 
-        Vector3 target = holder.TryGetComponent<PlayerInteraction>(
-                             out PlayerInteraction pi)
-            ? pi.HoldPointPosition
-            : holder.transform.position + Vector3.up * 1.2f;
+        Vector3 target;
+        if (holder.TryGetComponent<PlayerInteraction>(out PlayerInteraction pi))
+            target = pi.HoldPointPosition;
+        else if (holder.TryGetComponent<SupplyDrone>(out _))
+            target = holder.transform.position + Vector3.down * 0.55f;  // Kanca
+        else
+            target = holder.transform.position + Vector3.up * 1.2f;
 
         transform.position = Vector3.Lerp(
             transform.position, target, Time.deltaTime * 20f);

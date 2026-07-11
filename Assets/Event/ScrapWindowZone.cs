@@ -59,12 +59,26 @@ public class ScrapWindowZone : MonoBehaviour
     private readonly List<PickupItem> redDepot  = new();
     private readonly List<Transform>  lockedOccupants = new();
     private float[] barrierClosedY;
+    private float driftTimer;          // MP client: NV ile yerel durum farkı
+    private float lastNetElapsed = -1f;
 
     private const float BARRIER_SINK       = 4.5f;
     private const float BARRIER_ANIM_SPEED = 3.5f;
 
     public ZoneState State { get; private set; } = ZoneState.Closed;
     public bool IsOpen     => State == ZoneState.Open;
+
+    /// <summary>EventZoneSync okur (server → client saat yayını).</summary>
+    public float Elapsed     => elapsed;
+    public int   WindowIndex => windowIndex;
+
+    // MP Faz 3: yağma/depo/temizlik server'da; kapan kilidi + FPV + evict
+    // her makinede KENDİ lokal oyuncusu için koşar (hareket owner-auth).
+    private static bool Mp =>
+        Unity.Netcode.NetworkManager.Singleton != null &&
+        Unity.Netcode.NetworkManager.Singleton.IsListening;
+    private static bool Authority =>
+        !Mp || Unity.Netcode.NetworkManager.Singleton.IsServer;
 
     /// <summary>Kapılar sadece giriş fazında iner; sonra kapan kapanır.</summary>
     public bool GatesOpen  => IsOpen && entryTimer > 0f;
@@ -114,11 +128,6 @@ public class ScrapWindowZone : MonoBehaviour
 
     private void Update()
     {
-        // MP Faz 3'e kadar etkinlikler yalnız offline — senkronsuz iki
-        // gerçeklik oluşmasın (kapan/depo state'i server'a taşınacak)
-        if (Unity.Netcode.NetworkManager.Singleton != null &&
-            Unity.Netcode.NetworkManager.Singleton.IsListening) return;
-
         if (GameManager.Instance == null ||
             GameManager.Instance.CurrentPhase != GamePhase.Preparation)
         {
@@ -126,6 +135,8 @@ public class ScrapWindowZone : MonoBehaviour
             return;
         }
 
+        // Client: saat NV düzeltmesiyle akar (ApplyNetworkClock), aradaki
+        // kareleri yerel deltaTime doldurur — anonslar deterministik yerel
         elapsed += Time.deltaTime;
 
         EnsurePlayerMelee();
@@ -134,9 +145,38 @@ public class ScrapWindowZone : MonoBehaviour
 
         if (IsOpen)
         {
-            CheckPlayerDeposit();
-            KeepOccupantsInside();
+            if (Authority) CheckPlayerDeposit();   // Item'lar server'ın
+            KeepOccupantsInside();                 // Kilit lokal oyuncuya
         }
+    }
+
+    /// <summary>
+    /// MP client: EventZoneSync her karede çağırır. Elapsed yalnız NV
+    /// tazelenince yazılır (4 Hz); durum/pencere farkı 1 sn sürerse
+    /// sessizce server değerine çekilir.
+    /// </summary>
+    public void ApplyNetworkClock(float netElapsed, int netIndex,
+        ZoneState netState)
+    {
+        if (!Mathf.Approximately(netElapsed, lastNetElapsed))
+        {
+            lastNetElapsed = netElapsed;
+            elapsed        = netElapsed;
+        }
+
+        if (netIndex == windowIndex && netState == State)
+        {
+            driftTimer = 0f;
+            return;
+        }
+
+        driftTimer += Time.deltaTime;
+        if (driftTimer < 1f) return;
+
+        driftTimer  = 0f;
+        windowIndex = netIndex;
+        State       = netState;
+        if (State == ZoneState.Open) CaptureOccupants();   // Kapana katıl
     }
 
     // ── Pencere durum makinesi ───────────────────────────────────────────
@@ -170,7 +210,7 @@ public class ScrapWindowZone : MonoBehaviour
                     tenSecondsWarned     = false;
                     gatesClosedAnnounced = false;
                     entryTimer           = entryDuration;
-                    ScatterLoot();
+                    if (Authority) ScatterLoot();   // Yağma ağdan gelir
                     Sfx.Play(Sfx.Id.WindowOpen);
                     RaidAnnouncer.Show(
                         $"HURDALIK AÇILDI — KAPILAR {Mathf.RoundToInt(entryDuration)} " +
@@ -210,19 +250,26 @@ public class ScrapWindowZone : MonoBehaviour
         State = ZoneState.Closed;
         windowIndex++;
 
-        // Depolar teslim edilir: mavi → garaj kapısına, kırmızı → DirectorAI
-        int delivered = DeliverBlueDepot();
-        ConvertRedDepot();
-
-        // Serbest kalan yağmayı temizle (taşınanlar oyuncuda kalır)
-        for (int i = loot.Count - 1; i >= 0; i--)
+        int delivered = 0;
+        if (Authority)
         {
-            PickupItem l = loot[i];
-            if (l == null) { loot.RemoveAt(i); continue; }
-            if (l.transform.parent == null && IsInside(l.transform.position))
+            // Depolar teslim edilir: mavi → garaj kapısına; kırmızı offline
+            // DirectorAI'ye, MP'de client oyuncusunun kapısına
+            delivered = DeliverDepot(blueDepot, blueEvictPoint);
+            if (Mp) DeliverDepot(redDepot, redEvictPoint);
+            else    ConvertRedDepot();
+
+            // Serbest kalan yağmayı temizle (taşınanlar oyuncuda kalır)
+            for (int i = loot.Count - 1; i >= 0; i--)
             {
-                Destroy(l.gameObject);
-                loot.RemoveAt(i);
+                PickupItem l = loot[i];
+                if (l == null) { loot.RemoveAt(i); continue; }
+                if (l.transform.parent == null && !IsHeldOnNetwork(l) &&
+                    IsInside(l.transform.position))
+                {
+                    Destroy(l.gameObject);
+                    loot.RemoveAt(i);
+                }
             }
         }
 
@@ -232,16 +279,41 @@ public class ScrapWindowZone : MonoBehaviour
         if (!silent)
         {
             Sfx.Play(Sfx.Id.WindowClose);
-            RaidAnnouncer.Show(delivered > 0
-                ? $"HURDALIK KAPANDI — {delivered} MALZEME GARAJ KAPINA TAŞINDI!"
-                : "HURDALIK KAPANDI",
+            RaidAnnouncer.Show("HURDALIK KAPANDI",
                 new Color(0.95f, 0.32f, 0.26f), 3f);
+
+            // Teslimat sayısını yalnız server bilir — relay herkese gösterir
+            if (delivered > 0)
+                EventZoneSync.Announce(
+                    $"HURDALIK KAPANDI — {delivered} MALZEME GARAJ KAPINA TAŞINDI!",
+                    new Color(0.95f, 0.32f, 0.26f), 3f);
         }
     }
 
-    /// <summary>Bariyer kalkarken içeride kalan herkesi kapı ağzına ışınla.</summary>
+    /// <summary>MP'de taşıma parent'sız (NetworkItem holder) — ona da bak.</summary>
+    private static bool IsHeldOnNetwork(PickupItem l) =>
+        l.TryGetComponent<NetworkItem>(out NetworkItem ni) && ni.IsHeld;
+
+    /// <summary>
+    /// Bariyer kalkarken içeride kalanları kapı ağzına ışınla. MP: hareket
+    /// owner-authoritative — her makine yalnız KENDİ oyuncusunu, kendi
+    /// takımının kapısına taşır (iki taraf da aynı anı deterministik yaşar).
+    /// </summary>
     private void EvictOccupants()
     {
+        if (Mp)
+        {
+            PlayerInteraction local = FindLocalPlayer();
+            if (local != null && IsInside(local.transform.position))
+            {
+                bool blue = !local.TryGetComponent<NetworkPlayer>(
+                    out NetworkPlayer np) || np.IsBlueTeam;
+                Vector3 gate = blue ? blueEvictPoint : redEvictPoint;
+                local.transform.position = gate + Vector3.up * 0.75f;
+            }
+            return;
+        }
+
         foreach (PlayerController pc in
                  FindObjectsByType<PlayerController>(FindObjectsSortMode.None))
         {
@@ -252,6 +324,15 @@ public class ScrapWindowZone : MonoBehaviour
         TechnicianBot bot = FindFirstObjectByType<TechnicianBot>();
         if (bot != null && IsInside(bot.transform.position))
             bot.transform.position = redEvictPoint + Vector3.up * 0.75f;
+    }
+
+    /// <summary>MP: bu makinenin sahiplendiği oyuncu (offline: tek oyuncu).</summary>
+    private static PlayerInteraction FindLocalPlayer()
+    {
+        foreach (PlayerInteraction pi in
+                 FindObjectsByType<PlayerInteraction>(FindObjectsSortMode.None))
+            if (pi.IsLocalPlayer) return pi;
+        return null;
     }
 
     // ── Yağma ────────────────────────────────────────────────────────────
@@ -299,6 +380,11 @@ public class ScrapWindowZone : MonoBehaviour
         item.SetType(type);
         loot.Add(item);
         StationVisuals.AddLootBeam(obj, StationVisuals.ItemColor(type));
+
+        // MP: client kopyası huzmeyi beamNv üzerinden kendisi kurar
+        if (obj.TryGetComponent<NetworkItem>(out NetworkItem ni))
+            ni.SetBeam(true);
+
         return item;
     }
 
@@ -321,6 +407,16 @@ public class ScrapWindowZone : MonoBehaviour
     private void CaptureOccupants()
     {
         lockedOccupants.Clear();
+
+        if (Mp)
+        {
+            // Hareket owner-authoritative: her makine kendi oyuncusunu
+            // kilitler (kapan anı senkron saatle iki tarafta aynı karede)
+            PlayerInteraction local = FindLocalPlayer();
+            if (local != null && IsInside(local.transform.position))
+                lockedOccupants.Add(local.transform);
+            return;
+        }
 
         foreach (PlayerController pc in
                  FindObjectsByType<PlayerController>(FindObjectsSortMode.None))
@@ -351,7 +447,10 @@ public class ScrapWindowZone : MonoBehaviour
     // Depoya bırakılan item'ın collider'ı kapanır: rakip ne E ile alabilir
     // ne yumrukla düşürtebilir. Pencere kapanınca sahibine teslim edilir.
 
-    /// <summary>Malzeme taşıyan oyuncu deposuna yaklaşınca otomatik depolar.</summary>
+    /// <summary>
+    /// Malzeme taşıyan oyuncu deposuna yaklaşınca otomatik depolar.
+    /// MP'de server koşar: depo oyuncunun TAKIMINA göre seçilir.
+    /// </summary>
     private void CheckPlayerDeposit()
     {
         if (blueDepotAnchor == null) return;
@@ -362,8 +461,13 @@ public class ScrapWindowZone : MonoBehaviour
             if (pi.HeldObject == null) continue;
             if (!IsInside(pi.transform.position)) continue;
 
-            Vector3 a = pi.transform.position;      a.y = 0f;
-            Vector3 b = blueDepotAnchor.position;   b.y = 0f;
+            bool blue = !Mp || !pi.TryGetComponent<NetworkPlayer>(
+                out NetworkPlayer np) || np.IsBlueTeam;
+            Transform anchor = blue ? blueDepotAnchor : redDepotAnchor;
+            if (anchor == null) continue;
+
+            Vector3 a = pi.transform.position;  a.y = 0f;
+            Vector3 b = anchor.position;        b.y = 0f;
             if (Vector3.Distance(a, b) > depotRadius) continue;
 
             GameObject held = pi.HeldObject;
@@ -371,10 +475,11 @@ public class ScrapWindowZone : MonoBehaviour
 
             if (held.TryGetComponent<PickupItem>(out PickupItem item))
             {
-                DepositItem(item, blueDepot, blueDepotAnchor);
-                Sfx.Play(Sfx.Id.Deposit);
-                DamagePopup.Spawn(blueDepotAnchor.position, "DEPOLANDI!",
-                    new Color(0.25f, 0.50f, 0.95f), 1f);
+                DepositItem(item, blue ? blueDepot : redDepot, anchor);
+                EventZoneSync.PlaySfx(Sfx.Id.Deposit);
+                EventZoneSync.Popup(anchor.position, "DEPOLANDI!",
+                    blue ? new Color(0.25f, 0.50f, 0.95f)
+                         : new Color(0.95f, 0.32f, 0.26f), 1f);
             }
         }
     }
@@ -406,27 +511,46 @@ public class ScrapWindowZone : MonoBehaviour
 
         // Depo pedinde 3'lü sıralar halinde istifle
         int i = depot.Count;
-        item.transform.SetParent(anchor);
-        item.transform.localPosition = new Vector3(
+        Vector3 offset = new Vector3(
             (i % 3 - 1) * 0.55f, 0.35f, (i / 3) * 0.55f - 0.35f);
-        item.transform.localRotation = Quaternion.identity;
+
+        if (Mp)
+        {
+            // NetworkObject sahne child'ına parent'lanamaz — pozisyona
+            // sabitle (NetworkTransform taşır) + ağ kilidi (rakip alamaz)
+            item.transform.position = anchor.position + offset;
+            item.transform.rotation = Quaternion.identity;
+            if (item.TryGetComponent<NetworkItem>(out NetworkItem ni))
+            {
+                ni.SetBeam(false);
+                ni.SetLocked(true);
+            }
+        }
+        else
+        {
+            item.transform.SetParent(anchor);
+            item.transform.localPosition = offset;
+            item.transform.localRotation = Quaternion.identity;
+        }
 
         depot.Add(item);
     }
 
-    /// <summary>Mavi depo → garaj kapısının iç tarafına sıralanır.</summary>
-    private int DeliverBlueDepot()
+    /// <summary>Depo → takımın garaj kapısı iç tarafına sıralanır.
+    /// Mavi kapı yönü -x, kırmızı +x (kapıdan içeri bakar).</summary>
+    private int DeliverDepot(List<PickupItem> depot, Vector3 gate)
     {
-        int count = 0;
+        int   count = 0;
+        float xDir  = gate == blueEvictPoint ? -1.4f : 1.4f;
 
-        for (int i = 0; i < blueDepot.Count; i++)
+        for (int i = 0; i < depot.Count; i++)
         {
-            PickupItem item = blueDepot[i];
+            PickupItem item = depot[i];
             if (item == null) continue;
 
             item.transform.SetParent(null);
-            item.transform.position = blueEvictPoint +
-                new Vector3(-1.4f, 0.5f, (i % 5 - 2) * 0.8f);
+            item.transform.position = gate +
+                new Vector3(xDir, 0.5f, (i % 5 - 2) * 0.8f);
             item.transform.rotation = Quaternion.identity;
 
             if (item.TryGetComponent<Rigidbody>(out Rigidbody rb))
@@ -440,11 +564,15 @@ public class ScrapWindowZone : MonoBehaviour
                 col.isTrigger = false;
             }
 
+            // Ağ kilidi kalkar — sahibi artık alabilir
+            if (Mp && item.TryGetComponent<NetworkItem>(out NetworkItem ni))
+                ni.SetLocked(false);
+
             ReleaseLoot(item);
             count++;
         }
 
-        blueDepot.Clear();
+        depot.Clear();
         return count;
     }
 

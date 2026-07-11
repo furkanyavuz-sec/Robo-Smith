@@ -16,6 +16,53 @@ public class NetworkPlayer : NetworkBehaviour
     /// <summary>Host (server sahibi) Mavi takımdır, misafir Kırmızı.</summary>
     public bool IsBlueTeam => OwnerClientId == NetworkManager.ServerClientId;
 
+    // ── MP Faz 3: Hurdalık yumruğu ───────────────────────────────────────
+    // Girdi + swing görseli PlayerMelee'de lokal; isabet kararı burada
+    // server'da (pozisyon/rotasyon ClientNetworkTransform ile senkron),
+    // sersemleme kurbanın SAHİBİ makinede uygulanır (hareket owner-auth).
+    // PlayerMelee runtime'da eklenir, NetworkBehaviour olamaz — RPC'ler
+    // prefab'da hazır duran bu bileşende yaşar.
+
+    // PlayerMelee.punchRange / punchRadius ile aynı denge değerleri
+    private const float PUNCH_RANGE  = 1.3f;
+    private const float PUNCH_RADIUS = 1.1f;
+
+    [ServerRpc]
+    public void PunchServerRpc()
+    {
+        Vector3 hitCenter = transform.position + transform.forward * PUNCH_RANGE;
+
+        foreach (Collider col in Physics.OverlapSphere(hitCenter, PUNCH_RADIUS))
+        {
+            if (!col.TryGetComponent<NetworkPlayer>(out NetworkPlayer other) ||
+                other == this) continue;
+
+            Vector3 dir = other.transform.position - transform.position;
+            dir.y = 0f;
+
+            // Elindekini server düşürür, sersemleme sahibine gider
+            other.GetComponent<PlayerInteraction>()?.ForceDropFromStation();
+            other.ReceivePunchClientRpc(dir.normalized);
+            return;
+        }
+    }
+
+    [ClientRpc]
+    private void ReceivePunchClientRpc(Vector3 knockDir)
+    {
+        if (IsOwner)
+        {
+            if (TryGetComponent<PlayerMelee>(out PlayerMelee melee))
+                melee.ReceivePunch(knockDir);
+        }
+        else
+        {
+            // Uzak kopya: yalnız görsel geri bildirim (hareketi sahibi taşır)
+            DamagePopup.Spawn(transform.position, "SERSEMLEDİ!",
+                new Color(0.95f, 0.45f, 0.15f), 1.1f);
+        }
+    }
+
     public override void OnNetworkSpawn()
 {
     // Eğer bu obje BİZE aitse (Local Player ise)

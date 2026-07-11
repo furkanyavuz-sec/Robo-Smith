@@ -33,6 +33,7 @@ public class SupplyDrone : MonoBehaviour
     private DroneMode mode = DroneMode.Docked;
     private PickupItem carried;
     private DroneConsole console;         // Piloted modda geri bildirmek için
+    private DroneSync sync;               // MP köprüsü (yoksa/spawn değilse offline)
     private float stunTimer;
     private float pilotGrace;             // Konsola giriş E'si çıkışı tetiklemesin
     private float aiSpeed = 4.5f;
@@ -50,6 +51,19 @@ public class SupplyDrone : MonoBehaviour
     public bool IsCarrying     => carried != null;
     public bool IsPlayerTeam   => isPlayerTeam;
     public Vector3 HomePosition => homePosition;
+    public float GrabRadius     => grabRadius;      // DroneSync (server) okur
+    public float DeliverRadius  => deliverRadius;
+
+    // MP: simülasyon (hareket, mod) owner makinede; kapma/teslim server'da
+    private bool MpActive          => sync != null && sync.IsSpawned;
+    private bool LocallyControlled => !MpActive || sync.IsOwner;
+
+    /// <summary>DroneSync spawn olunca kendini tanıtır.</summary>
+    public void AttachSync(DroneSync s) => sync = s;
+
+    /// <summary>DroneSync: owner olmayan makinede modu aynala (görsel +
+    /// server'daki zone kontrolleri doğru okusun).</summary>
+    public void SetModeFromNetwork(DroneMode netMode) => mode = netMode;
 
     private void Start()
     {
@@ -74,6 +88,13 @@ public class SupplyDrone : MonoBehaviour
 
         SpinRotors();
 
+        // MP: hareket yalnız owner makinede — diğerlerine ClientNetworkTransform
+        // taşır, mod DroneSync'ten aynalanır (rotorlar doğru döner)
+        if (!LocallyControlled) return;
+
+        // MP'de kapma/teslim server'ın işi (DroneSync.ServerTick)
+        bool localEconomy = !MpActive;
+
         switch (mode)
         {
             case DroneMode.Docked:
@@ -82,22 +103,20 @@ public class SupplyDrone : MonoBehaviour
 
             case DroneMode.Piloted:
                 if (stunTimer <= 0f) HandlePilotInput();
-                TryGrab();
-                TryDeliver();
+                if (localEconomy) { TryGrab(); TryDeliver(); }
                 break;
 
             case DroneMode.AI:
                 if (stunTimer <= 0f && aiHasTarget)
                     MoveToward(aiTarget, aiSpeed);
-                TryGrab();
-                TryDeliver();
+                if (localEconomy) { TryGrab(); TryDeliver(); }
                 break;
 
             case DroneMode.Returning:
                 MoveToward(homePosition + Vector3.up * flyHeight, aiSpeed + 2f);
                 if (FlatDistance(transform.position, homePosition) < 0.4f)
                 {
-                    TryDeliver();
+                    if (localEconomy) TryDeliver();
                     mode = DroneMode.Docked;
                 }
                 break;
@@ -122,8 +141,22 @@ public class SupplyDrone : MonoBehaviour
         console = null;
     }
 
-    /// <summary>DroneRaidZone pencere kapatınca çağırır.</summary>
+    /// <summary>DroneRaidZone pencere kapatınca çağırır (MP'de server).</summary>
     public void ForceReturnHome()
+    {
+        if (MpActive && !sync.IsOwner)
+        {
+            // Simülasyon owner makinede — köprüden ilet (pilot varsa
+            // konsol kilidi de orada çözülür)
+            sync.ServerForceReturn();
+            return;
+        }
+
+        ForceReturnLocal();
+    }
+
+    /// <summary>Owner makinede eve dönüş (konsol çözme dahil).</summary>
+    public void ForceReturnLocal()
     {
         if (mode == DroneMode.Docked) return;
 
@@ -272,6 +305,11 @@ public class SupplyDrone : MonoBehaviour
     /// </summary>
     public bool OnRammed(Vector3 knockDir)
     {
+        if (MpActive)
+            // Zone server'da çağırır: yük düşürme server'da, sersemleme +
+            // savrulma owner makinede (RamClientRpc) uygulanır
+            return sync.ServerHandleRam(knockDir);
+
         stunTimer = 0.7f;
         transform.position = ClampToBounds(
             transform.position + knockDir * 1.4f + Vector3.up * 0f);
@@ -292,6 +330,14 @@ public class SupplyDrone : MonoBehaviour
             col.isTrigger = false;
 
         return true;
+    }
+
+    /// <summary>MP owner makinesi: çarpışma sersemlemesi + savrulma.</summary>
+    public void ApplyRamLocal(Vector3 knockDir)
+    {
+        stunTimer = 0.7f;
+        transform.position = ClampToBounds(
+            transform.position + knockDir * 1.4f);
     }
 
     // ── Yardımcılar ──────────────────────────────────────────────────────
@@ -345,7 +391,7 @@ public class SupplyDrone : MonoBehaviour
         return Vector3.Distance(a, b);
     }
 
-    private static string ItemName(ItemType t) => t switch
+    public static string ItemName(ItemType t) => t switch
     {
         ItemType.SteelPlate => "ÇELİK PLAKA",
         ItemType.PlasmaCore => "PLAZMA ÇEKİRDEĞİ",

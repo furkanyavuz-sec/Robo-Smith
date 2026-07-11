@@ -38,6 +38,8 @@ public class DroneRaidZone : MonoBehaviour
     private int   windowIndex;         // Sıradaki pencere
     private bool  tenSecondsWarned;
     private float stealCooldown;
+    private float driftTimer;          // MP client: NV ile yerel durum farkı
+    private float lastNetElapsed = -1f;
 
     private readonly List<PickupItem> rewards = new();
     private float[] barrierClosedY;
@@ -50,6 +52,18 @@ public class DroneRaidZone : MonoBehaviour
     // ── Public API ───────────────────────────────────────────────────────
     public ZoneState State  { get; private set; } = ZoneState.Closed;
     public bool IsOpen      => State == ZoneState.Open;
+
+    /// <summary>EventZoneSync okur (server → client saat yayını).</summary>
+    public float Elapsed     => elapsed;
+    public int   WindowIndex => windowIndex;
+
+    // MP Faz 3: simülasyon (spawn/temizlik/çarpışma) yalnız server'da;
+    // client aynı durum makinesini senkron saate göre sunum için koşturur.
+    private static bool Mp =>
+        Unity.Netcode.NetworkManager.Singleton != null &&
+        Unity.Netcode.NetworkManager.Singleton.IsListening;
+    private static bool Authority =>
+        !Mp || Unity.Netcode.NetworkManager.Singleton.IsServer;
 
     /// <summary>Konsol pencere anonsuyla birlikte kullanılabilir olur.</summary>
     public bool DroneUsable => State != ZoneState.Closed;
@@ -101,11 +115,6 @@ public class DroneRaidZone : MonoBehaviour
 
     private void Update()
     {
-        // MP Faz 3'e kadar etkinlikler yalnız offline — senkronsuz iki
-        // gerçeklik oluşmasın (her client kendi penceresini açardı)
-        if (Unity.Netcode.NetworkManager.Singleton != null &&
-            Unity.Netcode.NetworkManager.Singleton.IsListening) return;
-
         if (GameManager.Instance == null ||
             GameManager.Instance.CurrentPhase != GamePhase.Preparation)
         {
@@ -113,12 +122,46 @@ public class DroneRaidZone : MonoBehaviour
             return;
         }
 
-        elapsed       += Time.deltaTime;
-        stealCooldown -= Time.deltaTime;
+        // Client: saat NV düzeltmesiyle akar (ApplyNetworkClock), aradaki
+        // kareleri yerel deltaTime doldurur — anonslar deterministik yerel
+        elapsed += Time.deltaTime;
 
         UpdateWindowState();
         AnimateBarriers();
-        CheckDroneCollision();
+
+        if (Authority)
+        {
+            stealCooldown -= Time.deltaTime;
+            CheckDroneCollision();
+        }
+    }
+
+    /// <summary>
+    /// MP client: EventZoneSync her karede çağırır. Elapsed yalnız NV
+    /// tazelenince yazılır (4 Hz); durum/pencere farkı 1 sn sürerse
+    /// sessizce server değerine çekilir.
+    /// </summary>
+    public void ApplyNetworkClock(float netElapsed, int netIndex,
+        ZoneState netState)
+    {
+        if (!Mathf.Approximately(netElapsed, lastNetElapsed))
+        {
+            lastNetElapsed = netElapsed;
+            elapsed        = netElapsed;
+        }
+
+        if (netIndex == windowIndex && netState == State)
+        {
+            driftTimer = 0f;
+            return;
+        }
+
+        driftTimer += Time.deltaTime;
+        if (driftTimer < 1f) return;
+
+        driftTimer  = 0f;
+        windowIndex = netIndex;
+        State       = netState;
     }
 
     // ── Pencere durum makinesi ───────────────────────────────────────────
@@ -148,7 +191,7 @@ public class DroneRaidZone : MonoBehaviour
                 {
                     State = ZoneState.Open;
                     tenSecondsWarned = false;
-                    SpawnRewards();
+                    if (Authority) SpawnRewards();   // Ödüller ağdan gelir
                     Sfx.Play(Sfx.Id.WindowOpen);
                     RaidAnnouncer.Show("ÇEKİRDEK BÖLGE AÇILDI!",
                         new Color(0.20f, 0.95f, 0.60f), 3f);
@@ -172,20 +215,25 @@ public class DroneRaidZone : MonoBehaviour
         State = ZoneState.Closed;
         windowIndex++;
 
-        // Platformda kalan (alınmamış, taşınmayan) ödülleri yok et
-        for (int i = rewards.Count - 1; i >= 0; i--)
+        if (Authority)
         {
-            PickupItem r = rewards[i];
-            if (r == null) { rewards.RemoveAt(i); continue; }
-            if (r.transform.position.z > mapEdgeZ && r.transform.parent == null)
+            // Platformda kalan (alınmamış, taşınmayan) ödülleri yok et —
+            // MP'de Destroy despawn'a dönüşür, client kopyaları da gider
+            for (int i = rewards.Count - 1; i >= 0; i--)
             {
-                Destroy(r.gameObject);
-                rewards.RemoveAt(i);
+                PickupItem r = rewards[i];
+                if (r == null) { rewards.RemoveAt(i); continue; }
+                if (r.transform.position.z > mapEdgeZ &&
+                    r.transform.parent == null && !IsCarriedByDrone(r))
+                {
+                    Destroy(r.gameObject);
+                    rewards.RemoveAt(i);
+                }
             }
-        }
 
-        blueDrone?.ForceReturnHome();
-        redDrone?.ForceReturnHome();
+            blueDrone?.ForceReturnHome();
+            redDrone?.ForceReturnHome();
+        }
 
         if (!silent)
         {
@@ -229,6 +277,10 @@ public class DroneRaidZone : MonoBehaviour
 
             // Işık huzmesi — ödülün yerini uzaktan belli eder (kapılınca gider)
             StationVisuals.AddLootBeam(obj, StationVisuals.ItemColor(type));
+
+            // MP: client kopyası huzmeyi beamNv üzerinden kendisi kurar
+            if (obj.TryGetComponent<NetworkItem>(out NetworkItem ni))
+                ni.SetBeam(true);
         }
     }
 
@@ -236,20 +288,27 @@ public class DroneRaidZone : MonoBehaviour
     /// Drone her kare çağırır: yakında serbest ödül varsa kaptırır.
     /// Taşınan ödül (parent'lı) ve teslim edilmişler listeden düşer.
     /// </summary>
+    /// <summary>MP'de taşıma parent'sız (NetworkItem holder) — ona da bak.</summary>
+    private static bool IsCarriedByDrone(PickupItem r) =>
+        r.TryGetComponent<NetworkItem>(out NetworkItem ni) && ni.IsHeld;
+
     public PickupItem TryGrabNearby(Vector3 dronePos, float radius)
     {
         foreach (PickupItem r in rewards)
         {
             if (r == null || r.transform.parent != null) continue;
+            if (IsCarriedByDrone(r)) continue;
 
             // Yatay mesafe — drone yüksekte uçar, ödül yerdedir
             Vector3 a = r.transform.position; a.y = 0f;
             Vector3 b = dronePos;             b.y = 0f;
             if (Vector3.Distance(a, b) <= radius)
             {
-                // Huzmeyi söndür
+                // Huzmeyi söndür (MP: client kopyası beamNv ile söner)
                 Transform beam = r.transform.Find("Beam");
                 if (beam != null) Destroy(beam.gameObject);
+                if (r.TryGetComponent<NetworkItem>(out NetworkItem nb))
+                    nb.SetBeam(false);
                 return r;
             }
         }
@@ -307,11 +366,12 @@ public class DroneRaidZone : MonoBehaviour
         bool anyDropped = blueDrone.OnRammed( apart) |
                           redDrone .OnRammed(-apart);
 
-        Sfx.Play(Sfx.Id.Steal);
-        CameraShake.Add(0.25f);
+        // Server olayı — geri bildirim iki tarafa relay ile gider
+        EventZoneSync.PlaySfx(Sfx.Id.Steal);
+        EventZoneSync.Shake(0.25f);
 
         if (anyDropped)
-            RaidAnnouncer.Show("DRONE ÇARPIŞMASI — YÜK DÜŞTÜ!",
+            EventZoneSync.Announce("DRONE ÇARPIŞMASI — YÜK DÜŞTÜ!",
                 new Color(0.95f, 0.85f, 0.10f), 2f);
     }
 }

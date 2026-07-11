@@ -32,6 +32,10 @@ public class PlayerMelee : MonoBehaviour
 
     private void Update()
     {
+        // MP: girdi + sersemleme yalnız kendi oyuncumuzda (uzak kopyaya
+        // darbe ReceivePunchClientRpc ile sahibinin makinesinde uygulanır)
+        if (interaction != null && !interaction.IsLocalPlayer) return;
+
         cooldownTimer -= Time.deltaTime;
 
         // Sersemleme sayacı
@@ -73,6 +77,15 @@ public class PlayerMelee : MonoBehaviour
         DamagePopup.Spawn(hitCenter - Vector3.up * 1.2f, "DARBE!",
             new Color(0.95f, 0.85f, 0.10f), 0.8f);
 
+        // MP: isabet kararı server'da (pozisyonlar orada senkron) — swing
+        // geri bildirimi yukarıda lokal verildi
+        if (NetworkItem.IsMp)
+        {
+            if (TryGetComponent<NetworkPlayer>(out NetworkPlayer np))
+                np.PunchServerRpc();
+            return;
+        }
+
         Collider[] hits = Physics.OverlapSphere(hitCenter, punchRadius);
         foreach (Collider col in hits)
         {
@@ -107,7 +120,9 @@ public class PlayerMelee : MonoBehaviour
         stunTimer = stunDuration;
 
         if (controller != null) controller.enabled = false;
-        interaction?.ForceDropFromStation();
+
+        // MP'de düşürmeyi server yapar (item'lar server-authoritative)
+        if (!NetworkItem.IsMp) interaction?.ForceDropFromStation();
 
         transform.position += knockDir * 0.8f;
 

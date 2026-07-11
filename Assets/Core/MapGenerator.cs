@@ -100,6 +100,9 @@ public class MapGenerator : MonoBehaviour
         netState.AddComponent<Unity.Netcode.NetworkObject>();
         netState.AddComponent<NetworkGameState>();
 
+        // MP Faz 3: etkinlik bölgesi saat/durum senkronu + olay relay'i
+        netState.AddComponent<EventZoneSync>();
+
         WireSceneReferences(blueChassis, blueSpawn);
         WarnAboutOrphanStations();
         MarkSceneDirty();
@@ -360,10 +363,19 @@ public class MapGenerator : MonoBehaviour
         Configure(drone, "homePosition", MapPos(padPos));
         drone.BuildVisual();
 
-        // Kırmızı drone'u AI sürer
+        // Kırmızı drone'u AI sürer (MP'de kendini kapatır — misafir sürer)
         if (sign > 0) droneObj.AddComponent<DroneAIPilot>();
 
         if (console != null) Configure(console, "drone", drone);
+
+        // MP Faz 3: drone ağ objesi — owner-authoritative hareket (mavi
+        // host'un, kırmızı misafirin) + mod/kapma-teslim köprüsü
+        droneObj.AddComponent<Unity.Netcode.NetworkObject>();
+        droneObj.AddComponent<ClientNetworkTransform>();
+        DroneSync droneSync = droneObj.AddComponent<DroneSync>();
+        Configure(droneSync, "drone",   drone);
+        Configure(droneSync, "console", console);
+
         return drone;
     }
 

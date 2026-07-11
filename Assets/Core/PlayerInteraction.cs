@@ -210,9 +210,9 @@ public class PlayerInteraction : NetworkBehaviour
         {
             if (!col.TryGetComponent<PickupItem>(out _)) continue;
 
-            // Başkasının taşıdığı item yerden alınamaz
+            // Başkasının taşıdığı veya depoda kilitli item alınamaz
             if (col.TryGetComponent<NetworkItem>(out NetworkItem ni) &&
-                ni.IsHeld) continue;
+                (ni.IsHeld || ni.Locked)) continue;
 
             float dist = Vector3.Distance(
                 transform.position, col.transform.position);
@@ -264,8 +264,9 @@ public class PlayerInteraction : NetworkBehaviour
         if (Vector3.Distance(transform.position, itemNo.transform.position)
             > pickupRadius + 2f) return;
 
-        // Aynı anda iki oyuncu kapmasın — server'da son kontrol
-        if (itemNo.TryGetComponent<NetworkItem>(out NetworkItem ni) && ni.IsHeld)
+        // Aynı anda iki oyuncu kapmasın + depo kilidi — server'da son kontrol
+        if (itemNo.TryGetComponent<NetworkItem>(out NetworkItem ni) &&
+            (ni.IsHeld || ni.Locked))
             return;
 
         PickupFromStation(itemNo.gameObject);

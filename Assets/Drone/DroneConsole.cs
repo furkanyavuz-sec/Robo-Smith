@@ -18,12 +18,25 @@ public class DroneConsole : BaseStation
     private Transform         pilotTransform;
     private bool              inUse;
 
+    /// <summary>DroneSync: pencere kapanışında kilidi çözmek için okur.</summary>
+    public bool InUse => inUse;
+
     public override bool CanInteract(PlayerInteraction player)
     {
         if (inUse)                    return false;
         if (player.HeldObject != null) return false;   // Eli boş olmalı
         if (drone == null)            return false;
         if (drone.Mode != SupplyDrone.DroneMode.Docked) return false;
+
+        // Takım eşleşmesi: konsol kendi takımının drone'unu sürer.
+        // MP: mavi konsol host'un, kırmızı misafirin. Offline: oyuncu
+        // mavidir — kırmızı konsol AI'nındır.
+        if (NetworkItem.IsMp)
+        {
+            if (player.TryGetComponent<NetworkPlayer>(out NetworkPlayer np) &&
+                np.IsBlueTeam != drone.IsPlayerTeam) return false;
+        }
+        else if (!drone.IsPlayerTeam) return false;
 
         // Konsol sadece pencere anonsu/açıkken çalışır
         return DroneRaidZone.Instance != null &&
@@ -34,6 +47,21 @@ public class DroneConsole : BaseStation
     {
         if (!CanInteract(player)) return;
 
+        // MP: burası server'da koşar (generic ServerRpc) — kilit ve kamera
+        // pilotun makinesinde kurulmalı; DroneSync köprüsüne devret
+        if (NetworkItem.IsMp)
+        {
+            drone.GetComponent<DroneSync>()?.ServerBeginPiloting(player);
+            return;
+        }
+
+        LocalBeginPiloting(player);
+    }
+
+    /// <summary>Pilotun makinesinde koşar: oyuncu kilidi + kamera + kontrol.
+    /// Offline'da Interact, MP'de DroneSync.BeginPilotClientRpc çağırır.</summary>
+    public void LocalBeginPiloting(PlayerInteraction player)
+    {
         inUse            = true;
         pilotInteraction = player;
         pilotController  = player.GetComponent<PlayerController>();

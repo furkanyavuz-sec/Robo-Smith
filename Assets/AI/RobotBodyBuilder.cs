@@ -33,24 +33,31 @@ public static class RobotBodyBuilder
 
         Color accent = TeamAccent(teamId);
 
+        // Tema parçaları (SciFi kit): varsa gövde pahlı kit parçalarından
+        // kurulur — dokulu, harita temasıyla uyumlu. Yoksa primitif.
+        MapTheme th = ThemeRef.Current;
+
         // ── Gövde parçaları (HP rengine boyanır) ─────────────────────────
-        tintOut.Add(Part(body, "Kafa", PrimitiveType.Cube,
-            new Vector3(0f, 0.74f, 0f), new Vector3(0.45f, 0.4f, 0.45f)));
+        ThemedOr(body, "Kafa", th?.robotCore, PrimitiveType.Cube,
+            new Vector3(0f, 0.74f, 0f), new Vector3(0.45f, 0.4f, 0.45f), tintOut);
 
-        tintOut.Add(Part(body, "Omuz_Sag", PrimitiveType.Cube,
-            new Vector3(0.62f, 0.32f, 0f), new Vector3(0.3f, 0.3f, 0.3f)));
+        ThemedOr(body, "Omuz_Sag", th?.robotJoint, PrimitiveType.Cube,
+            new Vector3(0.62f, 0.32f, 0f), new Vector3(0.3f, 0.3f, 0.3f), tintOut);
 
-        tintOut.Add(Part(body, "Omuz_Sol", PrimitiveType.Cube,
-            new Vector3(-0.62f, 0.32f, 0f), new Vector3(0.3f, 0.3f, 0.3f)));
+        ThemedOr(body, "Omuz_Sol", th?.robotJoint, PrimitiveType.Cube,
+            new Vector3(-0.62f, 0.32f, 0f), new Vector3(0.3f, 0.3f, 0.3f), tintOut);
 
-        tintOut.Add(Part(body, "SirtCantasi", PrimitiveType.Cube,
-            new Vector3(0f, 0.12f, -0.56f), new Vector3(0.52f, 0.55f, 0.22f)));
+        ThemedOr(body, "SirtCantasi", th?.robotBackpack, PrimitiveType.Cube,
+            new Vector3(0f, 0.12f, -0.56f), new Vector3(0.52f, 0.55f, 0.22f),
+            tintOut);
 
-        tintOut.Add(Part(body, "YanPlaka_Sag", PrimitiveType.Cube,
-            new Vector3(0.54f, -0.08f, 0f), new Vector3(0.07f, 0.55f, 0.75f)));
+        ThemedOr(body, "YanPlaka_Sag", th?.robotPlate, PrimitiveType.Cube,
+            new Vector3(0.54f, -0.08f, 0f), new Vector3(0.07f, 0.55f, 0.75f),
+            tintOut);
 
-        tintOut.Add(Part(body, "YanPlaka_Sol", PrimitiveType.Cube,
-            new Vector3(-0.54f, -0.08f, 0f), new Vector3(0.07f, 0.55f, 0.75f)));
+        ThemedOr(body, "YanPlaka_Sol", th?.robotPlate, PrimitiveType.Cube,
+            new Vector3(-0.54f, -0.08f, 0f), new Vector3(0.07f, 0.55f, 0.75f),
+            tintOut);
 
         // ── Sabit renkli detaylar ────────────────────────────────────────
         // Vizör — takım rengi, öne bakar (FaceTarget +z'yi döndürür)
@@ -150,6 +157,56 @@ public static class RobotBodyBuilder
     }
 
     // ── Yapı Taşları ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tema parçası varsa kit prefabını hedef kutuya sığdırıp kullanır,
+    /// yoksa primitife düşer. Dönen renderer HP tint listesine girer
+    /// (MaterialPropertyBlock kit dokusunun üstüne renk bindirir).
+    /// </summary>
+    private static void ThemedOr(GameObject parent, string name,
+        GameObject prefab, PrimitiveType fallback, Vector3 localPos,
+        Vector3 size, List<Renderer> tintOut)
+    {
+        if (prefab == null)
+        {
+            tintOut.Add(Part(parent, name, fallback, localPos, size));
+            return;
+        }
+
+        GameObject obj = Object.Instantiate(prefab, parent.transform);
+        obj.name = name;
+        obj.transform.localRotation = Quaternion.identity;
+
+        foreach (Collider c in obj.GetComponentsInChildren<Collider>())
+            Object.Destroy(c);
+
+        Renderer[] rends = obj.GetComponentsInChildren<Renderer>();
+        if (rends.Length == 0)
+        {
+            Object.Destroy(obj);
+            tintOut.Add(Part(parent, name, fallback, localPos, size));
+            return;
+        }
+
+        // Bounds'u hedef kutuya eksen bazında ölçekle, merkezi localPos'a getir
+        Bounds b = rends[0].bounds;
+        for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+
+        obj.transform.localScale = Vector3.Scale(obj.transform.localScale,
+            new Vector3(
+                size.x / Mathf.Max(b.size.x, 0.01f),
+                size.y / Mathf.Max(b.size.y, 0.01f),
+                size.z / Mathf.Max(b.size.z, 0.01f)));
+
+        obj.transform.localPosition = localPos;
+        b = rends[0].bounds;
+        for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+        obj.transform.position +=
+            parent.transform.TransformPoint(localPos) - b.center;
+
+        // Tüm parçalar HP rengine boyanır (çok renderer'lı prefablar dahil)
+        tintOut.AddRange(rends);
+    }
 
     private static Renderer Part(GameObject parent, string name, PrimitiveType type,
         Vector3 localPos, Vector3 scale) =>

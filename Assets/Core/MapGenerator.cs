@@ -75,6 +75,11 @@ public class MapGenerator : MonoBehaviour
         // Tema istasyon kabuklarına da işlesin (Decorate* çağrılarından önce)
         StationVisuals.SetTheme(theme);
 
+        // Runtime tema erişimi (RobotBodyBuilder arena gövdesi buradan okur)
+        GameObject themeRefObj = new GameObject("Theme Ref");
+        themeRefObj.transform.SetParent(transform);
+        themeRefObj.AddComponent<ThemeRef>().theme = theme;
+
         totalWidth  = garageWidth * 2f + ScrapyardWidth;
         teamACenter = -(garageWidth + ScrapyardWidth) / 2f;
         teamBCenter =  (garageWidth + ScrapyardWidth) / 2f;
@@ -166,24 +171,61 @@ public class MapGenerator : MonoBehaviour
         // Proplar
         t.crate = LoadKitPrefab("Props/Crate_01");
 
-        // İstasyon kabukları — gövde kit'ten, neon renk dili üstünde kalır
-        t.supplyShell    = LoadKitPrefab("Props/Crate_01");
-        t.processorShell = LoadKitPrefab("Walls/Wall_Gear_01_Half");
-        t.weaponShell    = LoadKitPrefab("Walls/Wall_Gear_02_Half");
-        t.assemblyShell  = LoadKitPrefab("Walls/Wall_Table_01");
+        // İstasyon kabukları — HİBRİT: gerçek makineler Sci-Fi Styled
+        // Modular Pack'ten (iki paket de sci-fi, doku dili uyumlu);
+        // neon renk dili (mini beacon + etiket) üstlerinde kalır
+        t.supplyShell    = LoadPrefabAt(ModRoot + "Machines/container_small.prefab");
+        t.processorShell = LoadPrefabAt(ModRoot + "Machines/generator.prefab");
+        t.weaponShell    = LoadPrefabAt(ModRoot + "Machines/Capacitor.prefab");
+        t.assemblyShell  = LoadPrefabAt(ModRoot + "Machines/Shield Core.prefab");
         t.trashShell     = LoadKitPrefab("Props/Airing_01");
-        t.consoleShell   = LoadKitPrefab("Walls/Wall_Console_01_Half");
-        t.plasmaShell    = LoadKitPrefab("Stuff/Pipes_01");
+        t.consoleShell   = LoadPrefabAt(ModRoot +
+            "Decorative elements/Tables/desk.prefab");
+        t.plasmaShell    = LoadPrefabAt(ModRoot + "Machines/Battery_big.prefab");
 
-        // Kaideler — istasyon makineleri ve şasiler sergi plakasına oturur
+        // Kaideler — istasyonlar plakada, şasiler holo-projektör üstünde
         t.stationBase     = LoadKitPrefab("Floors/Floor_Coin_01_Small");
-        t.chassisPedestal = LoadKitPrefab("Floors/Floor_Coin_01_Small");
+        t.chassisPedestal = LoadPrefabAt(ModRoot + "Machines/projector.prefab");
 
-        // Atmosfer
+        // Oyuncu karakteri — sevimli modüler low-poly robot (animasyonlu)
+        t.playerCharacter = LoadPrefabAt(
+            "Assets/FreeLowPolyRobot/Meshes_and_Animations/" +
+            "RandomModularRobots_Prefab.prefab");
+
+        // Paketin özel shader'ı Unity 6 URP'de mor kalıyor — renk atlası
+        // dokusuyla pipeline'ın kendi Lit materyalini üret (PlayerSkin basar)
+        const string urpMatPath = "Assets/FreeLowPolyRobot/Materials/M_AtlasURP.mat";
+        Material urpMat = UnityEditor.AssetDatabase
+            .LoadAssetAtPath<Material>(urpMatPath);
+        if (urpMat == null)
+        {
+            RenderPipelineAsset rp = GraphicsSettings.defaultRenderPipeline;
+            Shader sh = rp != null ? rp.defaultShader : Shader.Find("Standard");
+            urpMat = new Material(sh);
+            UnityEditor.AssetDatabase.CreateAsset(urpMat, urpMatPath);
+        }
+        Texture2D atlas = UnityEditor.AssetDatabase.LoadAssetAtPath<Texture2D>(
+            "Assets/FreeLowPolyRobot/Materials/T_ColorAtlas.png");
+        if (atlas != null) urpMat.mainTexture = atlas;
+        UnityEditor.EditorUtility.SetDirty(urpMat);
+        t.playerCharacterMaterial = urpMat;
+
+        // Robot gövdesi — pahlı kit parçaları + batarya sırt çantası
+        t.robotCore     = LoadPrefabAt(ModRoot +
+            "Extended Primitives/Cube_1x1_extended.prefab");
+        t.robotPlate    = LoadPrefabAt(ModRoot +
+            "Extended Primitives/Cube_1x2_extended.prefab");
+        t.robotJoint    = LoadPrefabAt(ModRoot +
+            "Extended Primitives/Sphere_16_extended.prefab");
+        t.robotBackpack = LoadPrefabAt(ModRoot + "Machines/Battery.prefab");
+
+        // Atmosfer: Creepy boruları + Modular Pack mavi duvar lambaları
         t.decorProps = new[]
         {
             LoadKitPrefab("Stuff/Pipes_02"),
+            LoadPrefabAt(ModRoot + "Lights/light_wall_1_blue.prefab"),
             LoadKitPrefab("Stuff/Intercom_01"),
+            LoadPrefabAt(ModRoot + "Lights/light_wall_2_blue.prefab"),
             LoadKitPrefab("Stuff/Air_Grid_01"),
         };
         t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
@@ -292,6 +334,82 @@ public class MapGenerator : MonoBehaviour
 
         Debug.Log("[MapGenerator] ✅ Stilize Atölye teması bağlandı " +
                   "(StylizedMapTheme.asset). Şimdi Generate Map + Ctrl+S.");
+    }
+
+    // ── Ortaçağ (Fantasy Armory) teması ──────────────────────────────────
+    // Tamamen Stylized Fantasy Armory: ahşap çit duvarlar/bariyerler, kütük
+    // sütunlar, sandık/körük/kazan/örs/tezgah/varil istasyonları, meşale +
+    // silah rafı dekorları. Pakette zemin karosu yok — zeminler koyu taş
+    // tonlu primitif kalır (stilize düz renk).
+
+    private const string MedievalThemePath = "Assets/MedievalMapTheme.asset";
+
+    [ContextMenu("Wire Medieval Theme")]
+    private void WireMedievalTheme()
+    {
+        MapTheme t = UnityEditor.AssetDatabase
+            .LoadAssetAtPath<MapTheme>(MedievalThemePath);
+        if (t == null)
+        {
+            t = ScriptableObject.CreateInstance<MapTheme>();
+            UnityEditor.AssetDatabase.CreateAsset(t, MedievalThemePath);
+        }
+
+        string props = ArmoryRoot + "Prefabs/Decorative Props/";
+        string combo = ArmoryRoot + "Prefabs/Combinations/";
+
+        // Zemin karoları yok → null bırak (primitif taş rengi zemin)
+        t.floorTile      = null;
+        t.scrapFloorTile = null;
+        t.platformFloor  = null;
+        t.depotBase      = null;
+
+        // Duvar & bariyer: ahşap çitler y'de istiflenir; sütun = kütük
+        t.wallPanel    = LoadPrefabAt(props + "Fences/Fence.002.prefab");
+        t.barrierFence = LoadPrefabAt(props + "Fences/Fence.001.prefab");
+        t.pillar       = LoadPrefabAt(ArmoryRoot +
+            "Prefabs/Nature/Wooden Logs/WoodenLog.001.prefab");
+
+        // Proplar
+        t.crate = LoadPrefabAt(props + "Box/Box.001.prefab");
+
+        // İstasyonlar: atölye ekipmanları
+        t.supplyShell    = LoadPrefabAt(props + "Chest/ChestS.001.prefab");
+        t.processorShell = LoadPrefabAt(props +
+            "Anvil and Airblower/Airblower.prefab");          // Körük
+        t.weaponShell    = LoadPrefabAt(props +
+            "Anvil and Airblower/Anvil.prefab");              // Örs
+        t.assemblyShell  = LoadPrefabAt(ArmoryRoot +
+            "Prefabs/Extra Content/Fantasy Workshops and Crafting Vol2/" +
+            "SFWC2_Crafting_Table.prefab");
+        t.trashShell     = LoadPrefabAt(props + "Barrel/Barrel.001.prefab");
+        t.consoleShell   = LoadPrefabAt(combo + "Table 1.prefab");
+        t.plasmaShell    = LoadPrefabAt(props +
+            "Cauldron and Campfire/CauldronandCampfire.prefab"); // Kazan
+
+        // Kaideler: pakette plaka yok — şasiler yerde sergilenir
+        t.stationBase     = null;
+        t.chassisPedestal = null;
+
+        // Atmosfer: meşaleler + silah rafı + raf
+        t.decorProps = new[]
+        {
+            LoadPrefabAt(ArmoryRoot + "Prefabs/Armory Structure and " +
+                "Attachables/Armory Attachables/BuildingTorch.001.prefab"),
+            LoadPrefabAt(combo + "WeaponRack.001.prefab"),
+            LoadPrefabAt(combo + "Shelve.001.prefab"),
+        };
+        t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
+            ArmoryRoot + "Materials/Skybox/Skybox.mat");
+
+        UnityEditor.EditorUtility.SetDirty(t);
+
+        theme = t;
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.AssetDatabase.SaveAssets();
+
+        Debug.Log("[MapGenerator] ✅ Ortaçağ teması bağlandı " +
+                  "(MedievalMapTheme.asset). Şimdi Generate Map + Ctrl+S.");
     }
 #endif
 
@@ -1160,9 +1278,11 @@ public class MapGenerator : MonoBehaviour
     {
         if (HasTheme && theme.wallPanel != null)
         {
-            // Panel döşemesi + collider container'da; neon şerit aynen kalır
+            // Panel döşemesi + collider container'da; neon şerit aynen kalır.
+            // stackY: kısa modüller (çit vb.) y'de istiflenir, duvar boyu
+            // paneller tek sıra kalır — esnetme çirkinliği olmaz
             FillBox(theme.wallPanel, wallName, MapPos(position), scale,
-                keepCollider: true, stretchY: true);
+                keepCollider: true, stretchY: false, stackY: true);
             CreateWallStrip(wallName, position, scale, lightColor);
             return;
         }

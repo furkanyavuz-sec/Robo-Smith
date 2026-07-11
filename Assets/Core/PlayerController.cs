@@ -31,6 +31,11 @@ public class PlayerController : NetworkBehaviour
         rb.collisionDetectionMode = CollisionDetectionMode.Continuous;
 
         mainCamera = Camera.main;
+
+        // Sevimli robot kaplaması — prefab düzenlemeden runtime iliştirme
+        // (Awake remote kopyada da koşar; skin her makinede görünür)
+        if (GetComponent<PlayerSkin>() == null)
+            gameObject.AddComponent<PlayerSkin>();
     }
 
     /// <summary>

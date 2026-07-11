@@ -37,6 +37,17 @@ public class MapTheme : ScriptableObject
     public GameObject consoleShell;   // Drone konsolu
     public GameObject plasmaShell;    // Plazma kaynağı
 
+    [Header("Oyuncu Karakteri (sevimli low-poly robot — boşsa primitif)")]
+    public GameObject playerCharacter;
+    public Material   playerCharacterMaterial;  // Paket shader'ı URP'de
+                                                // derlenmezse (mor) bu basılır
+
+    [Header("Robot Gövde Parçaları (arena robotu — boşsa primitif)")]
+    public GameObject robotCore;     // Kafa/gövde blokları (pahlı küp)
+    public GameObject robotPlate;    // Yan plakalar (uzun pahlı küp)
+    public GameObject robotJoint;    // Omuzlar (pahlı küre)
+    public GameObject robotBackpack; // Sırt çantası (küçük batarya vb.)
+
     [Header("Kaideler")]
     public GameObject stationBase;     // İstasyon kabuğu altı kaide plakası
     public GameObject chassisPedestal; // Şasi sergi platformu

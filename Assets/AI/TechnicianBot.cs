@@ -65,6 +65,11 @@ public class TechnicianBot : MonoBehaviour
             return;
         }
 
+        // Oyuncuyla aynı sevimli robot kaplaması — farklı seed, farklı parça
+        // dizilimi (rakip ayırt edilir)
+        if (GetComponent<PlayerSkin>() == null)
+            gameObject.AddComponent<PlayerSkin>().seedOverride = 777;
+
         Difficulty diff = MatchData.Instance != null
             ? MatchData.Instance.SelectedDifficulty
             : Difficulty.Normal;

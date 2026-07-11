@@ -32,8 +32,9 @@ public static class ChassisPreviewBuilder
         // Turntable kök — şasinin üstünde süzülür, yavaşça döner
         GameObject root = new GameObject("ChassisPreview");
         root.transform.SetParent(chassis.transform, false);
-        root.transform.localPosition = new Vector3(0f, 1.55f, 0f);
-        root.transform.localScale    = Vector3.one * 0.8f;
+        // Karakter boyuyla senkron: ~1.8m taslak (disk ~1.0'da, tepe ~2.8)
+        root.transform.localPosition = new Vector3(0f, 1.85f, 0f);
+        root.transform.localScale    = Vector3.one * 1.3f;
         root.AddComponent<StationDecorTag>();
         root.AddComponent<BeaconSpin>().SetSpeed(30f);
 
@@ -41,14 +42,18 @@ public static class ChassisPreviewBuilder
         Part(root, "HoloDisk", PrimitiveType.Cylinder,
             new Vector3(0f, -0.62f, 0f), new Vector3(1.0f, 0.012f, 1.0f), HoloDim);
 
+        // Gövde parçaları: tema varsa kit şekilleri (arena robotuyla aynı
+        // silüet), hologram rengine boyanır — taslak/gerçek eşleşir
+        MapTheme th = ThemeRef.Current;
+
         // Gövde — ilk yatırımla belirir
-        Part(root, "Govde", PrimitiveType.Cube,
+        BodyPart(root, "Govde", th?.robotCore, PrimitiveType.Cube,
             Vector3.zero, new Vector3(0.60f, 0.72f, 0.45f), Holo);
 
         // HP → kafa + vizör
         if (s.HP > 0)
         {
-            Part(root, "Kafa", PrimitiveType.Cube,
+            BodyPart(root, "Kafa", th?.robotCore, PrimitiveType.Cube,
                 new Vector3(0f, 0.56f, 0f), new Vector3(0.32f, 0.28f, 0.32f), Holo);
             Part(root, "Vizor", PrimitiveType.Cube,
                 new Vector3(0f, 0.58f, 0.17f), new Vector3(0.24f, 0.07f, 0.03f),
@@ -58,18 +63,18 @@ public static class ChassisPreviewBuilder
         // ATK → omuzlar
         if (s.ATK > 0)
         {
-            Part(root, "Omuz_Sag", PrimitiveType.Cube,
+            BodyPart(root, "Omuz_Sag", th?.robotJoint, PrimitiveType.Cube,
                 new Vector3( 0.44f, 0.26f, 0f), Vector3.one * 0.22f, Holo);
-            Part(root, "Omuz_Sol", PrimitiveType.Cube,
+            BodyPart(root, "Omuz_Sol", th?.robotJoint, PrimitiveType.Cube,
                 new Vector3(-0.44f, 0.26f, 0f), Vector3.one * 0.22f, Holo);
         }
 
         // DEF → yan zırh plakaları
         if (s.DEF > 0)
         {
-            Part(root, "Plaka_Sag", PrimitiveType.Cube,
+            BodyPart(root, "Plaka_Sag", th?.robotPlate, PrimitiveType.Cube,
                 new Vector3( 0.38f, -0.10f, 0f), new Vector3(0.05f, 0.42f, 0.50f), Holo);
-            Part(root, "Plaka_Sol", PrimitiveType.Cube,
+            BodyPart(root, "Plaka_Sol", th?.robotPlate, PrimitiveType.Cube,
                 new Vector3(-0.38f, -0.10f, 0f), new Vector3(0.05f, 0.42f, 0.50f), Holo);
         }
 
@@ -146,7 +151,60 @@ public static class ChassisPreviewBuilder
         }
     }
 
-    // ── Yapı Taşı ────────────────────────────────────────────────────────
+    // ── Yapı Taşları ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Tema parçası varsa kit şeklini hologram rengiyle kullanır (tüm
+    /// materyaller düz holo renge çevrilir), yoksa primitif. Turntable
+    /// kökü ölçekli (0.8) — hedef boyut dünya ölçeğine çevrilerek sığdırılır.
+    /// </summary>
+    private static void BodyPart(GameObject parent, string name,
+        GameObject prefab, PrimitiveType fallback, Vector3 localPos,
+        Vector3 size, Color color)
+    {
+        if (prefab == null)
+        {
+            Part(parent, name, fallback, localPos, size, color);
+            return;
+        }
+
+        GameObject obj = Object.Instantiate(prefab, parent.transform);
+        obj.name = name;
+        obj.transform.localRotation = Quaternion.identity;
+        obj.AddComponent<StationDecorTag>();
+
+        foreach (Collider c in obj.GetComponentsInChildren<Collider>())
+            Object.Destroy(c);
+
+        Renderer[] rends = obj.GetComponentsInChildren<Renderer>();
+        if (rends.Length == 0)
+        {
+            Object.Destroy(obj);
+            Part(parent, name, fallback, localPos, size, color);
+            return;
+        }
+
+        Bounds b = rends[0].bounds;
+        for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+
+        // Hedefi dünya ölçeğine çevir (kök 0.8 ölçekli)
+        Vector3 lossy  = parent.transform.lossyScale;
+        Vector3 target = Vector3.Scale(size, lossy);
+        obj.transform.localScale = Vector3.Scale(obj.transform.localScale,
+            new Vector3(
+                target.x / Mathf.Max(b.size.x, 0.01f),
+                target.y / Mathf.Max(b.size.y, 0.01f),
+                target.z / Mathf.Max(b.size.z, 0.01f)));
+
+        obj.transform.localPosition = localPos;
+        b = rends[0].bounds;
+        for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+        obj.transform.position +=
+            parent.transform.TransformPoint(localPos) - b.center;
+
+        Material holoMat = StationVisuals.GetMaterial(color);
+        foreach (Renderer r in rends) r.sharedMaterial = holoMat;
+    }
 
     private static void Part(GameObject parent, string name, PrimitiveType type,
         Vector3 localPos, Vector3 scale, Color color, Vector3? euler = null)

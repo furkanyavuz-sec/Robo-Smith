@@ -400,7 +400,7 @@ public static class StationVisuals
             AddBasePlate(station, theme.chassisPedestal, footprint: 2.4f);
 
         AddUnderGlow(station, teamAccent);
-        AddLabel(station, label, teamAccent, 2.6f);
+        AddLabel(station, label, teamAccent, 3.3f);   // Büyüyen hologramın üstünde
     }
 
     // ── Yapı Taşları ─────────────────────────────────────────────────────

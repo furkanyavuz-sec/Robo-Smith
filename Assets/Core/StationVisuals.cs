@@ -28,9 +28,13 @@ public static class StationVisuals
 
     public static void SetTheme(MapTheme t) => theme = t;
 
-    private static void ApplyShell(GameObject station, GameObject shellPrefab)
+    /// <summary>Dönüş: kabuk giydirildi mi? Giydirildiyse çağıran, eski
+    /// primitif dekorları (çerçeve/direk/taban) KURMAZ — çakışma olmaz;
+    /// içerik rengi mini beacon + etiketle taşınır.</summary>
+    private static bool ApplyShell(GameObject station, GameObject shellPrefab)
     {
-        if (theme == null || shellPrefab == null || station == null) return;
+        if (theme == null || shellPrefab == null || station == null)
+            return false;
 
         // Mevcut gövde görsellerini gizle — collider'lara dokunma
         foreach (Renderer r in station.GetComponentsInChildren<Renderer>())
@@ -67,7 +71,7 @@ public static class StationVisuals
             if (first) { b = r.bounds; first = false; }
             else         b.Encapsulate(r.bounds);
         }
-        if (first) return;
+        if (first) return true;
 
         float s = Mathf.Min(
             1.35f / Mathf.Max(b.size.x, 0.01f),
@@ -85,6 +89,8 @@ public static class StationVisuals
         Vector3 ground = station.transform.position;
         shell.transform.position += new Vector3(
             ground.x - b.center.x, baseTop - b.min.y, ground.z - b.center.z);
+
+        return true;
     }
 
     /// <summary>
@@ -219,12 +225,18 @@ public static class StationVisuals
         if (station == null) return;
         Color c = ItemColor(content);
 
-        ApplyShell(station, theme ? theme.supplyShell : null);
-
-        // Neon kasa çerçevesi — içerik renginde
-        AddTechFrame(station, c);
-        AddUnderGlow(station, c);
-        AddBeacon(station, c);
+        if (ApplyShell(station, theme ? theme.supplyShell : null))
+        {
+            // Kit kasası gövde — içerik rengi mini holo işaretçide
+            AddBeacon(station, c, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            // Neon kasa çerçevesi — içerik renginde
+            AddTechFrame(station, c);
+            AddUnderGlow(station, c);
+            AddBeacon(station, c);
+        }
         AddLabel(station, $"Tedarik\n<size=75%>{trName}</size>", c);
     }
 
@@ -233,7 +245,7 @@ public static class StationVisuals
         if (station == null) return;
         Color c = ItemColor(content);
 
-        ApplyShell(station, theme ? theme.supplyShell : null);
+        bool shelled = ApplyShell(station, theme ? theme.supplyShell : null);
 
         // Hurda yığını — içerik renginde eğik küpler (kasadan taşar: dolu his)
         Primitive(station, PrimitiveType.Cube,
@@ -246,9 +258,16 @@ public static class StationVisuals
             new Vector3( 0.05f, 0.95f,  0.05f), Vector3.one * 0.30f, c,
             new Vector3(30f, 10f, -20f));
 
-        AddTechFrame(station, c);
-        AddUnderGlow(station, c);
-        AddBeacon(station, c);
+        if (shelled)
+        {
+            AddBeacon(station, c, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            AddTechFrame(station, c);
+            AddUnderGlow(station, c);
+            AddBeacon(station, c);
+        }
         AddLabel(station, $"Hurdalık\n<size=75%>{trName}</size>", c);
     }
 
@@ -259,20 +278,26 @@ public static class StationVisuals
         Color weaponColor = ItemColor(output);
         Color inputColor  = ItemColor(input);
 
-        ApplyShell(station, theme ? theme.weaponShell : null);
+        if (ApplyShell(station, theme ? theme.weaponShell : null))
+        {
+            // Silah rengi mini işaretçide, girdi rengi etikette anlatılır
+            AddBeacon(station, weaponColor, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            // Tabela: silah renginde dikey levha
+            Primitive(station, PrimitiveType.Cube,
+                new Vector3(0f, 1.35f, -0.55f),
+                new Vector3(0.9f, 0.9f, 0.08f), weaponColor);
 
-        // Tabela: silah renginde dikey levha
-        Primitive(station, PrimitiveType.Cube,
-            new Vector3(0f, 1.35f, -0.55f),
-            new Vector3(0.9f, 0.9f, 0.08f), weaponColor);
+            // Girdi göstergesi: tabelanın altında küçük küp
+            Primitive(station, PrimitiveType.Cube,
+                new Vector3(0f, 0.72f, -0.55f),
+                Vector3.one * 0.24f, inputColor, new Vector3(0f, 45f, 0f));
 
-        // Girdi göstergesi: tabelanın altında küçük küp — hangi maddeyle çalışır
-        Primitive(station, PrimitiveType.Cube,
-            new Vector3(0f, 0.72f, -0.55f),
-            Vector3.one * 0.24f, inputColor, new Vector3(0f, 45f, 0f));
-
-        AddTechFrame(station, weaponColor);
-        AddUnderGlow(station, weaponColor);
+            AddTechFrame(station, weaponColor);
+            AddUnderGlow(station, weaponColor);
+        }
         AddLabel(station,
             $"{weaponName} Atölyesi\n<size=70%>Girdi: {inputName}</size>",
             weaponColor);
@@ -283,15 +308,20 @@ public static class StationVisuals
         if (station == null) return;
         Color orange = new Color(0.90f, 0.40f, 0.05f);
 
-        ApplyShell(station, theme ? theme.processorShell : null);
+        if (ApplyShell(station, theme ? theme.processorShell : null))
+        {
+            AddBeacon(station, orange, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            // Baca — işleme makinesi kimliği
+            Primitive(station, PrimitiveType.Cylinder,
+                new Vector3(0.35f, 1.35f, -0.35f),
+                new Vector3(0.22f, 0.45f, 0.22f), orange);
 
-        // Baca — işleme makinesi kimliği
-        Primitive(station, PrimitiveType.Cylinder,
-            new Vector3(0.35f, 1.35f, -0.35f),
-            new Vector3(0.22f, 0.45f, 0.22f), orange);
-
-        AddTechFrame(station, orange);
-        AddUnderGlow(station, orange);
+            AddTechFrame(station, orange);
+            AddUnderGlow(station, orange);
+        }
         AddLabel(station,
             "İşleme Masası\n<size=70%>Demir · Plazma · Devre</size>", orange);
     }
@@ -301,21 +331,26 @@ public static class StationVisuals
         if (station == null) return;
         Color purple = new Color(0.55f, 0.25f, 0.95f);
 
-        ApplyShell(station, theme ? theme.assemblyShell : null);
+        if (ApplyShell(station, theme ? theme.assemblyShell : null))
+        {
+            AddBeacon(station, purple, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            // Birleşme sembolü: iki küp üst üste, hafif çapraz
+            Primitive(station, PrimitiveType.Cube,
+                new Vector3(-0.15f, 1.15f, -0.45f),
+                Vector3.one * 0.30f, ItemColor(ItemType.SteelPlate),
+                new Vector3(0f, 30f, 0f));
+            Primitive(station, PrimitiveType.Cube,
+                new Vector3(0.15f, 1.40f, -0.45f),
+                Vector3.one * 0.30f, ItemColor(ItemType.Microchip),
+                new Vector3(0f, -20f, 0f));
 
-        // Birleşme sembolü: iki küp üst üste, hafif çapraz
-        Primitive(station, PrimitiveType.Cube,
-            new Vector3(-0.15f, 1.15f, -0.45f),
-            Vector3.one * 0.30f, ItemColor(ItemType.SteelPlate),
-            new Vector3(0f, 30f, 0f));
-        Primitive(station, PrimitiveType.Cube,
-            new Vector3(0.15f, 1.40f, -0.45f),
-            Vector3.one * 0.30f, ItemColor(ItemType.Microchip),
-            new Vector3(0f, -20f, 0f));
-
-        AddTechFrame(station, purple);
-        AddUnderGlow(station, purple);
-        AddBeacon(station, purple);
+            AddTechFrame(station, purple);
+            AddUnderGlow(station, purple);
+            AddBeacon(station, purple);
+        }
         AddLabel(station,
             "Montaj İstasyonu\n<size=70%>2 farklı ürün → Modül</size>", purple);
     }
@@ -323,9 +358,11 @@ public static class StationVisuals
     public static void DecorateTrashBin(GameObject station)
     {
         if (station == null) return;
-        ApplyShell(station, theme ? theme.trashShell : null);
-        AddTechFrame(station, new Color(0.45f, 0.45f, 0.50f), cornerPosts: false);
-        AddUnderGlow(station, new Color(0.35f, 0.35f, 0.38f));
+        if (!ApplyShell(station, theme ? theme.trashShell : null))
+        {
+            AddTechFrame(station, new Color(0.45f, 0.45f, 0.50f), cornerPosts: false);
+            AddUnderGlow(station, new Color(0.35f, 0.35f, 0.38f));
+        }
         AddLabel(station, "Çöp Kutusu", new Color(0.55f, 0.55f, 0.55f));
     }
 
@@ -334,16 +371,22 @@ public static class StationVisuals
         if (station == null) return;
         Color c = ItemColor(ItemType.RawPlasma);
 
-        ApplyShell(station, theme ? theme.plasmaShell : null);
+        if (ApplyShell(station, theme ? theme.plasmaShell : null))
+        {
+            // Boru tesisatının üstünde süzülen enerji işaretçisi
+            AddBeacon(station, c, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            // Enerji sütunu — parlak sarı kapsül
+            Primitive(station, PrimitiveType.Capsule,
+                new Vector3(0f, 1.3f, 0f),
+                new Vector3(0.35f, 0.6f, 0.35f), c);
 
-        // Enerji sütunu — parlak sarı kapsül
-        Primitive(station, PrimitiveType.Capsule,
-            new Vector3(0f, 1.3f, 0f),
-            new Vector3(0.35f, 0.6f, 0.35f), c);
-
-        AddTechFrame(station, c, cornerPosts: false);
-        AddUnderGlow(station, c);
-        AddBeacon(station, c);
+            AddTechFrame(station, c, cornerPosts: false);
+            AddUnderGlow(station, c);
+            AddBeacon(station, c);
+        }
         AddLabel(station, "Plazma Kaynağı", c);
     }
 
@@ -387,24 +430,30 @@ public static class StationVisuals
     {
         if (station == null) return;
 
-        ApplyShell(station, theme ? theme.consoleShell : null);
+        if (ApplyShell(station, theme ? theme.consoleShell : null))
+        {
+            // Takım rengi mini işaretçide — konsol paneli kit'ten
+            AddBeacon(station, teamAccent, height: 2.0f, size: 0.18f);
+        }
+        else
+        {
+            // Anten — konsol kimliği (drone'la haberleşme hissi)
+            Primitive(station, PrimitiveType.Cylinder,
+                new Vector3(-0.32f, 1.55f, -0.32f),
+                new Vector3(0.05f, 0.55f, 0.05f), teamAccent);
+            Primitive(station, PrimitiveType.Sphere,
+                new Vector3(-0.32f, 2.15f, -0.32f),
+                Vector3.one * 0.16f, Color.Lerp(teamAccent, Color.white, 0.4f));
 
-        // Anten — konsol kimliği (drone'la haberleşme hissi)
-        Primitive(station, PrimitiveType.Cylinder,
-            new Vector3(-0.32f, 1.55f, -0.32f),
-            new Vector3(0.05f, 0.55f, 0.05f), teamAccent);
-        Primitive(station, PrimitiveType.Sphere,
-            new Vector3(-0.32f, 2.15f, -0.32f),
-            Vector3.one * 0.16f, Color.Lerp(teamAccent, Color.white, 0.4f));
+            // Ekran — hafif eğik holo panel
+            Primitive(station, PrimitiveType.Cube,
+                new Vector3(0f, 1.25f, 0.10f),
+                new Vector3(0.75f, 0.45f, 0.06f), teamAccent * 0.9f,
+                new Vector3(-25f, 0f, 0f));
 
-        // Ekran — hafif eğik holo panel
-        Primitive(station, PrimitiveType.Cube,
-            new Vector3(0f, 1.25f, 0.10f),
-            new Vector3(0.75f, 0.45f, 0.06f), teamAccent * 0.9f,
-            new Vector3(-25f, 0f, 0f));
-
-        AddTechFrame(station, teamAccent);
-        AddUnderGlow(station, teamAccent);
+            AddTechFrame(station, teamAccent);
+            AddUnderGlow(station, teamAccent);
+        }
         AddLabel(station,
             "Drone Konsolu\n<size=70%>Çekirdek Bölge [E]</size>", teamAccent);
     }

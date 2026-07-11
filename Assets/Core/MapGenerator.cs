@@ -202,13 +202,96 @@ public class MapGenerator : MonoBehaviour
     }
 
     private static GameObject LoadKitPrefab(string relativePath)
+        => LoadPrefabAt(KitPrefabRoot + relativePath + ".prefab");
+
+    private static GameObject LoadPrefabAt(string assetPath)
     {
-        GameObject p = UnityEditor.AssetDatabase.LoadAssetAtPath<GameObject>(
-            KitPrefabRoot + relativePath + ".prefab");
+        GameObject p = UnityEditor.AssetDatabase
+            .LoadAssetAtPath<GameObject>(assetPath);
         if (p == null)
-            Debug.LogWarning("[MapGenerator] Kit prefabı bulunamadı: " +
-                             relativePath + " — bu parça primitif kalacak.");
+            Debug.LogWarning("[MapGenerator] Prefab bulunamadı: " +
+                             assetPath + " — bu parça primitif kalacak.");
         return p;
+    }
+
+    // ── Stilize Atölye teması ────────────────────────────────────────────
+    // Sci-Fi Styled Modular Pack (mimari + makineler) + Stylized Fantasy
+    // Armory (atölye ekipmanları: örs, zanaat tezgahı, varil, silah rafı).
+    // İki paket de stilize — tutarlı, temiz bir görünüm. Ayrı asset'e yazar
+    // (StylizedMapTheme); eski temaya dönmek = Wire SciFi Theme + Generate.
+
+    private const string ModRoot =
+        "Assets/Sci-Fi Styled Modular Pack/Prefabs/";
+    private const string ArmoryRoot =
+        "Assets/Daniel Mistage/Stylized Fantasy Armory/";
+    private const string StylizedThemePath = "Assets/StylizedMapTheme.asset";
+
+    [ContextMenu("Wire Stylized Theme")]
+    private void WireStylizedTheme()
+    {
+        MapTheme t = UnityEditor.AssetDatabase
+            .LoadAssetAtPath<MapTheme>(StylizedThemePath);
+        if (t == null)
+        {
+            t = ScriptableObject.CreateInstance<MapTheme>();
+            UnityEditor.AssetDatabase.CreateAsset(t, StylizedThemePath);
+        }
+
+        // Zeminler — bölge başına farklı karo
+        t.floorTile      = LoadPrefabAt(ModRoot + "Floors/floor_2_blank.prefab");
+        t.scrapFloorTile = LoadPrefabAt(ModRoot + "Floors/floor_3.prefab");
+        t.platformFloor  = LoadPrefabAt(ModRoot + "Floors/floor_5.prefab");
+        t.depotBase      = LoadPrefabAt(ModRoot + "Floors/floor_1.prefab");
+
+        // Duvar & bariyer
+        t.wallPanel    = LoadPrefabAt(ModRoot + "Walls/Simple/decorative_wall_E.prefab");
+        t.pillar       = LoadPrefabAt(ModRoot +
+            "Decorative elements/Column/column_middle.prefab");
+        t.barrierFence = LoadPrefabAt(ModRoot +
+            "Walls/Half walls/decorative_half_wall_5.prefab");
+
+        // Proplar
+        t.crate = LoadPrefabAt(ModRoot + "Machines/container_small.prefab");
+
+        // İstasyon kabukları — makine/atölye kimliği
+        t.supplyShell    = LoadPrefabAt(ModRoot + "Machines/container_small.prefab");
+        t.processorShell = LoadPrefabAt(ModRoot + "Machines/generator.prefab");
+        t.weaponShell    = LoadPrefabAt(ArmoryRoot +
+            "Prefabs/Decorative Props/Anvil and Airblower/Anvil.prefab");
+        t.assemblyShell  = LoadPrefabAt(ArmoryRoot +
+            "Prefabs/Extra Content/Fantasy Workshops and Crafting Vol2/" +
+            "SFWC2_Crafting_Table.prefab");
+        t.trashShell     = LoadPrefabAt(ArmoryRoot +
+            "Prefabs/Decorative Props/Barrel/Barrel.001.prefab");
+        t.consoleShell   = LoadPrefabAt(ModRoot +
+            "Decorative elements/Tables/desk.prefab");
+        t.plasmaShell    = LoadPrefabAt(ModRoot + "Machines/Battery_big.prefab");
+
+        // Kaideler — şasi holo-projektör üstünde sergilenir
+        t.stationBase     = LoadPrefabAt(ModRoot + "Floors/floor_1.prefab");
+        t.chassisPedestal = LoadPrefabAt(ModRoot + "Machines/projector.prefab");
+
+        // Atmosfer: mavi duvar lambası + silah rafı + raf (atölye kimliği)
+        t.decorProps = new[]
+        {
+            LoadPrefabAt(ModRoot + "Lights/light_wall_1_blue.prefab"),
+            LoadPrefabAt(ArmoryRoot + "Prefabs/Combinations/WeaponRack.001.prefab"),
+            LoadPrefabAt(ArmoryRoot + "Prefabs/Combinations/Shelve.001.prefab"),
+        };
+        t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
+            ArmoryRoot + "Materials/Skybox/Skybox.mat");
+        if (t.skybox == null)
+            Debug.LogWarning("[MapGenerator] Armory skybox bulunamadı — " +
+                             "mevcut gökyüzü korunacak.");
+
+        UnityEditor.EditorUtility.SetDirty(t);
+
+        theme = t;
+        UnityEditor.EditorUtility.SetDirty(this);
+        UnityEditor.AssetDatabase.SaveAssets();
+
+        Debug.Log("[MapGenerator] ✅ Stilize Atölye teması bağlandı " +
+                  "(StylizedMapTheme.asset). Şimdi Generate Map + Ctrl+S.");
     }
 #endif
 

@@ -12,14 +12,15 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 public class MapGenerator : MonoBehaviour
 {
     [Header("Harita Boyutları")]
     [SerializeField] private float garageWidth    = 20f;
     [SerializeField] private float garageDepth    = 20f;
-    [SerializeField] private float wallHeight     = 3f;
     [SerializeField] private float wallThickness  = 0.5f;
+    // wallHeight kaldırıldı — kapalı fabrikada FactoryWallH sabiti geçerli
 
     [Header("Renk Paleti — Takımlar")]
     [SerializeField] private Color blueFloor  = new Color(0.13f, 0.18f, 0.32f);
@@ -35,12 +36,21 @@ public class MapGenerator : MonoBehaviour
     [SerializeField] private Color wallTone     = new Color(0.19f, 0.19f, 0.21f);
 
     // ── Harita/bölge boyutları (KOD İÇİNDE — tek denge noktası) ──────────
-    // Inspector'daki eski seri değerler haritayı etkilemesin diye sabit.
-    // Hurdalık 16→24: yan bantlar (atölyeler) + kilitlenebilir orta şerit.
-    private const float ScrapyardWidth = 24f;
-    private const float CoreZoneGap   = 3f;    // Ön duvar → platform boşluğu
-    private const float CoreZoneWidth = 18f;
-    private const float CoreZoneDepth = 13f;
+    // YENİ YERLEŞİM (v3): mahalledeki teknoloji garajı.
+    //   [Cadde/mahalle]  ←  -z dışarısı
+    //   [Mavi Garaj][alçak ayraç][Kırmızı Garaj]   ← yan yana, birbirini görür
+    //   [Hurdalık şeridi — garajların ÜST kapısından girilir]
+    //   [Çekirdek Bölge — hurdalığın ötesi, sadece drone]
+    private const float GarageGap    = 1.2f;   // İki garaj arası (alçak ayraç)
+    private const float ScrapDepth   = 16f;    // Hurdalık şeridi derinliği
+    private const float DoorWidth    = 4f;     // Garaj üst kapısı genişliği
+
+    // v5: AÇIK teknoloji atölyesi (tavan yok — kullanıcı istemedi);
+    // drone bölgesi içerideki yüksek sevkiyat rafında kalır
+    private const float FactoryWallH = 4.0f;   // Dış duvar yüksekliği
+    private const float ShelfWidth   = 32f;    // Raf genişliği (x)
+    private const float ShelfDepth   = 4f;     // Raf derinliği (z 22..26)
+    private const float ShelfTopY    = 3.4f;   // Raf üst yüzü (ödüller burada)
 
     [Header("Çekirdek Bölge (Drone Raid)")]
     [SerializeField] private Color barrierColor  = new Color(0.95f, 0.30f, 0.20f);
@@ -80,17 +90,27 @@ public class MapGenerator : MonoBehaviour
         themeRefObj.transform.SetParent(transform);
         themeRefObj.AddComponent<ThemeRef>().theme = theme;
 
-        totalWidth  = garageWidth * 2f + ScrapyardWidth;
-        teamACenter = -(garageWidth + ScrapyardWidth) / 2f;
-        teamBCenter =  (garageWidth + ScrapyardWidth) / 2f;
+        totalWidth  = garageWidth * 2f + GarageGap;
+        teamACenter = -(garageWidth + GarageGap) / 2f;
+        teamBCenter =  (garageWidth + GarageGap) / 2f;
+        float scrapCenterZ = garageDepth / 2f + ScrapDepth / 2f;
 
-        // Zeminler
-        CreateFloor("Zemin - Mavi Garaj",    teamACenter, garageWidth,    blueFloor);
-        CreateFloor("Zemin - Hurdalık",      0f,          ScrapyardWidth, neutralFloor,
+        // Zeminler — garajlar yan yana, hurdalık üstte şerit
+        CreateFloor("Zemin - Mavi Garaj",    teamACenter, 0f,
+            garageWidth, garageDepth, blueFloor);
+        CreateFloor("Zemin - Kırmızı Garaj", teamBCenter, 0f,
+            garageWidth, garageDepth, redFloor);
+        CreateFloor("Zemin - Hurdalık",      0f, scrapCenterZ,
+            totalWidth, ScrapDepth, neutralFloor,
             HasTheme ? theme.scrapFloorTile : null);
-        CreateFloor("Zemin - Kırmızı Garaj", teamBCenter, garageWidth,    redFloor);
 
         CreateWalls();
+
+        // Mahalle: caddeler, kaldırım, sokak lambaları, çevre binalar
+        BuildNeighborhood();
+
+        // Bloom/vignette + kamera post-processing — neonlar gerçekten parlar
+        BuildPostProcessing();
 
         // Garajlar (aynalı) + tarafsız orta bölge
         List<RobotChassis> blueChassis = BuildGarage(teamACenter, -1, "Mavi",
@@ -115,6 +135,10 @@ public class MapGenerator : MonoBehaviour
         // MP Faz 3: etkinlik bölgesi saat/durum senkronu + olay relay'i
         netState.AddComponent<EventZoneSync>();
 
+        // Dünya zemini: tesis uzayda süzülmesin — haritanın çevresine
+        // dev beton saha (üstü harita zemininin 5cm altında, z-fight yok)
+        BuildOuterGround();
+
         // Atmosfer: duvar dibi dekorları + kit gökyüzü
         if (HasTheme)
         {
@@ -137,63 +161,91 @@ public class MapGenerator : MonoBehaviour
     }
 
 #if UNITY_EDITOR
-    // ── SciFi tema bağlayıcısı ───────────────────────────────────────────
-    // 3D Scifi Kit Starter Kit (Creepy_Cat) prefablarından MapTheme asset'i
-    // üretir/günceller ve bu generator'a bağlar. Kit klasörü gitignore'da —
-    // kit importlu olmayan makinede alanlar null kalır, harita primitife düşer.
+    // ── Sevimli Şehir tema bağlayıcısı ───────────────────────────────────
+    // Pandazole City/Nature + SimplePoly City paketlerinden CuteCityTheme
+    // üretir: MAHALLE (binalar, yollar, araçlar, ağaçlar, sokak propları)
+    // + oyuncu karakteri + prosedürel güneşli gökyüzü.
+    // Atölye İÇİ alanları bilinçli BOŞ bırakılır — kullanıcı iç mekân
+    // paketini seçince ayrıca bağlanacak; o zamana dek primitif yer tutucu.
 
-    private const string KitPrefabRoot =
-        "Assets/Creepy_Cat/3D Scifi Kit Starter Kit_HD/Prefabs/";
-    private const string ThemeAssetPath = "Assets/SciFiMapTheme.asset";
+    private const string PandaCity =
+        "Assets/Pandazole_Ultimate_Pack/Pandazole City Town Pack/Prefabs/";
+    private const string PandaNature =
+        "Assets/Pandazole_Ultimate_Pack/Pandazole Nature Environment Pack/Prefabs/";
+    private const string SPoly =
+        "Assets/SimplePoly City - Low Poly Assets/Prefab/";
+    private const string Ithappy =
+        "Assets/ithappy/Cartoon_City_Free/Prefabs/";
+    private const string CuteThemePath = "Assets/CuteCityTheme.asset";
 
-    [ContextMenu("Wire SciFi Theme")]
-    private void WireSciFiTheme()
+    [ContextMenu("Wire Cute City Theme")]
+    private void WireCuteCityTheme()
     {
         MapTheme t = UnityEditor.AssetDatabase
-            .LoadAssetAtPath<MapTheme>(ThemeAssetPath);
+            .LoadAssetAtPath<MapTheme>(CuteThemePath);
         if (t == null)
         {
             t = ScriptableObject.CreateInstance<MapTheme>();
-            UnityEditor.AssetDatabase.CreateAsset(t, ThemeAssetPath);
+            UnityEditor.AssetDatabase.CreateAsset(t, CuteThemePath);
         }
 
-        // Zeminler — bölge başına farklı doku (garaj/hurdalık/platform)
-        t.floorTile      = LoadKitPrefab("Floors/Floor_Squared_01_6x6");
-        t.scrapFloorTile = LoadKitPrefab("Floors/Floor_Squared_02_6x6");
-        t.platformFloor  = LoadKitPrefab("Floors/Floor_Pipes_01");
-        t.depotBase      = LoadKitPrefab("Floors/Floor_Coin_01_Small");
+        // Mahalle binaları — iki paketten karışık (çeşitlilik)
+        t.cityBuildings = new[]
+        {
+            LoadPrefabAt(PandaCity + "Env_ResidentBuilding_01.prefab"),
+            LoadPrefabAt(PandaCity + "Env_ResidentBuilding_03.prefab"),
+            LoadPrefabAt(PandaCity + "Env_CommercialBuilding_01.prefab"),
+            LoadPrefabAt(PandaCity + "Env_CommercialBuilding_03.prefab"),
+            LoadPrefabAt(PandaCity + "Env_CompanyBuilding_02.prefab"),
+            LoadPrefabAt(PandaCity + "Env_Motel_02.prefab"),
+            LoadPrefabAt(Ithappy + "Buildings/Eco_Building_Grid.prefab"),
+            LoadPrefabAt(Ithappy + "Buildings/Eco_Building_Terrace.prefab"),
+            LoadPrefabAt(SPoly + "Buildings/Building Sky_small_color01.prefab"),
+            LoadPrefabAt(SPoly + "Buildings/Building Sky_small_color03.prefab"),
+        };
 
-        // Duvar & bariyer
-        t.wallPanel    = LoadKitPrefab("Walls/Wall_Simple_01_Long");
-        t.pillar       = LoadKitPrefab("Walls/Column_01_Big");
-        t.barrierFence = LoadKitPrefab("Fences/Fence_Long_01");
+        t.roadStraight = LoadPrefabAt(PandaCity + "Env_Road_Straight_01.prefab");
+        t.streetLight  = LoadPrefabAt(SPoly + "Props/Props_Street Light.prefab");
 
-        // Proplar
-        t.crate = LoadKitPrefab("Props/Crate_01");
+        t.cityCars = new[]
+        {
+            LoadPrefabAt(SPoly + "Vehicles/Vehicle with Static Wheels/Vehicle_Car_color01.prefab"),
+            LoadPrefabAt(SPoly + "Vehicles/Vehicle with Static Wheels/Vehicle_Car_color02.prefab"),
+            LoadPrefabAt(SPoly + "Vehicles/Vehicle with Static Wheels/Vehicle_Car_color03.prefab"),
+            LoadPrefabAt(SPoly + "Vehicles/Vehicle with Static Wheels/Vehicle_Bus_color01.prefab"),
+        };
 
-        // İstasyon kabukları — HİBRİT: gerçek makineler Sci-Fi Styled
-        // Modular Pack'ten (iki paket de sci-fi, doku dili uyumlu);
-        // neon renk dili (mini beacon + etiket) üstlerinde kalır
-        t.supplyShell    = LoadPrefabAt(ModRoot + "Machines/container_small.prefab");
-        t.processorShell = LoadPrefabAt(ModRoot + "Machines/generator.prefab");
-        t.weaponShell    = LoadPrefabAt(ModRoot + "Machines/Capacitor.prefab");
-        t.assemblyShell  = LoadPrefabAt(ModRoot + "Machines/Shield Core.prefab");
-        t.trashShell     = LoadKitPrefab("Props/Airing_01");
-        t.consoleShell   = LoadPrefabAt(ModRoot +
-            "Decorative elements/Tables/desk.prefab");
-        t.plasmaShell    = LoadPrefabAt(ModRoot + "Machines/Battery_big.prefab");
+        t.cityTrees = new[]
+        {
+            LoadPrefabAt(SPoly + "Natures/Natures_Big Tree.prefab"),
+            LoadPrefabAt(SPoly + "Natures/Natures_Fir Tree.prefab"),
+            LoadPrefabAt(SPoly + "Natures/Natures_Cube Tree.prefab"),
+            LoadPrefabAt(Ithappy + "Vegetation/Palm_03.prefab"),
+        };
 
-        // Kaideler — istasyonlar plakada, şasiler holo-projektör üstünde
-        t.stationBase     = LoadKitPrefab("Floors/Floor_Coin_01_Small");
-        t.chassisPedestal = LoadPrefabAt(ModRoot + "Machines/projector.prefab");
+        t.cityBushes = new[]
+        {
+            LoadPrefabAt(PandaNature + "Bush_03.prefab"),
+            LoadPrefabAt(PandaNature + "Bush_08.prefab"),
+            LoadPrefabAt(PandaNature + "HardRock_02.prefab"),
+        };
 
-        // Oyuncu karakteri — sevimli modüler low-poly robot (animasyonlu)
+        t.cityProps = new[]
+        {
+            LoadPrefabAt(SPoly + "Props/Props_Bus Stop.prefab"),
+            LoadPrefabAt(SPoly + "Props/Props_Hydrant.prefab"),
+            LoadPrefabAt(SPoly + "Props/Props_Bench_1.prefab"),
+            LoadPrefabAt(PandaCity + "Prop_StreetSign_Major.prefab"),
+            LoadPrefabAt(PandaCity + "Prop_RoadCone_01.prefab"),
+            LoadPrefabAt(Ithappy + "Props/Fountain_03.prefab"),
+            LoadPrefabAt(Ithappy + "Props/traffic_light_001.prefab"),
+        };
+
+        // Oyuncu karakteri (FreeLowPolyRobot kalıcı) + URP atlas materyali
         t.playerCharacter = LoadPrefabAt(
             "Assets/FreeLowPolyRobot/Meshes_and_Animations/" +
             "RandomModularRobots_Prefab.prefab");
 
-        // Paketin özel shader'ı Unity 6 URP'de mor kalıyor — renk atlası
-        // dokusuyla pipeline'ın kendi Lit materyalini üret (PlayerSkin basar)
         const string urpMatPath = "Assets/FreeLowPolyRobot/Materials/M_AtlasURP.mat";
         Material urpMat = UnityEditor.AssetDatabase
             .LoadAssetAtPath<Material>(urpMatPath);
@@ -210,28 +262,95 @@ public class MapGenerator : MonoBehaviour
         UnityEditor.EditorUtility.SetDirty(urpMat);
         t.playerCharacterMaterial = urpMat;
 
-        // Robot gövdesi — pahlı kit parçaları + batarya sırt çantası
-        t.robotCore     = LoadPrefabAt(ModRoot +
-            "Extended Primitives/Cube_1x1_extended.prefab");
-        t.robotPlate    = LoadPrefabAt(ModRoot +
-            "Extended Primitives/Cube_1x2_extended.prefab");
-        t.robotJoint    = LoadPrefabAt(ModRoot +
-            "Extended Primitives/Sphere_16_extended.prefab");
-        t.robotBackpack = LoadPrefabAt(ModRoot + "Machines/Battery.prefab");
+        // Gökyüzü: prosedürel güneşli gündüz (eski paket skybox'ları silindi)
+        const string skyPath = "Assets/CuteSkybox.mat";
+        Material sky = UnityEditor.AssetDatabase
+            .LoadAssetAtPath<Material>(skyPath);
+        if (sky == null)
+        {
+            sky = new Material(Shader.Find("Skybox/Procedural"));
+            UnityEditor.AssetDatabase.CreateAsset(sky, skyPath);
+        }
+        sky.SetFloat("_Exposure", 1.25f);
+        sky.SetColor("_SkyTint", new Color(0.52f, 0.74f, 1f));
+        sky.SetColor("_GroundColor", new Color(0.78f, 0.80f, 0.74f));
+        UnityEditor.EditorUtility.SetDirty(sky);
+        t.skybox = sky;
 
-        // Atmosfer: Creepy boruları + Modular Pack mavi duvar lambaları
+        // ── Atölye içi: sahip olunan paketlerin teknik proplarıyla ──────
+        // Zemin/duvar pastel prosedürel kalır (aşağıdaki palet) — kit
+        // karosu yok; istasyon gövdeleri sevimli "cihaz" propları
+        t.floorTile = null;      t.scrapFloorTile = null;
+        t.platformFloor = null;  t.depotBase = null;
+        t.wallPanel = null;      t.windowPanel = null;
+        t.ceilingTile = null;    t.ceilingBeam = null;
+        t.pillar = null;         t.barrierFence = null;
+
+        t.supplyShell    = LoadPrefabAt(PandaCity + "Prop_ElectracityCabinet_01.prefab");
+        t.processorShell = LoadPrefabAt(PandaCity + "Prop_ElectracityCabinet_02.prefab");
+        t.weaponShell    = LoadPrefabAt(PandaCity + "Prop_ElectracityCabinet_03.prefab");
+        t.assemblyShell  = LoadPrefabAt(PandaCity + "Prop_ACVent_Cross.prefab");
+        t.trashShell     = LoadPrefabAt(Ithappy + "Props/Trash_Can_04.prefab");
+        t.consoleShell   = LoadPrefabAt(SPoly + "Props/Props_BillBoard_small.prefab");
+        t.plasmaShell    = LoadPrefabAt(PandaCity + "Prop_OilBerrel_01.prefab");
+        t.crate          = LoadPrefabAt(Ithappy + "Props/Trash_06.prefab");
+        t.stationBase    = null;
+        t.chassisPedestal = LoadPrefabAt(SPoly + "Props/Props_Roof Helipad.prefab");
+
+        // İç dekor: spot ışığı + havalandırma + baca (duvar dipleri)
         t.decorProps = new[]
         {
-            LoadKitPrefab("Stuff/Pipes_02"),
-            LoadPrefabAt(ModRoot + "Lights/light_wall_1_blue.prefab"),
-            LoadKitPrefab("Stuff/Intercom_01"),
-            LoadPrefabAt(ModRoot + "Lights/light_wall_2_blue.prefab"),
-            LoadKitPrefab("Stuff/Air_Grid_01"),
+            LoadPrefabAt(Ithappy + "Props/Spotlight_01.prefab"),
+            LoadPrefabAt(PandaCity + "Prop_ACVent_Stright.prefab"),
+            LoadPrefabAt(PandaCity + "Prop_Chimney_01.prefab"),
         };
-        t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
-            "Assets/Creepy_Cat/3D Scifi Kit Starter Kit_HD/Textures/Skybox/Skybox.mat");
-        if (t.skybox == null)
-            Debug.LogWarning("[MapGenerator] Kit skybox materyali bulunamadı.");
+
+        // Arena savaş robotu — polyart savaşçı (animatörü prefabla gelir)
+        t.battleCharacter = LoadPrefabAt(
+            "Assets/SciFiWarriorPBRHPPolyart/Prefabs/PolyartCharacter.prefab");
+
+        // Arena robot primitif parçaları devre dışı (hero gövde kullanılır)
+        t.robotCore = null;      t.robotPlate = null;
+        t.robotJoint = null;     t.robotBackpack = null;
+
+        // ── Item şekilleri: tip → paket propu (renk otomatik biner) ─────
+        t.itemShapes = new[]
+        {
+            Shape(ItemType.Iron,         PandaNature + "HardRock_03.prefab"),
+            Shape(ItemType.RawPlasma,    PandaNature + "HardRock_08.prefab"),
+            Shape(ItemType.Circuit,      SPoly + "Props/Props_BillBoard_small.prefab"),
+            Shape(ItemType.SteelPlate,   SPoly + "Natures/Natures_House Floor.prefab"),
+            Shape(ItemType.PlasmaCore,   PandaCity + "Prop_RoofVent_02.prefab"),
+            Shape(ItemType.Microchip,    PandaCity + "Prop_Intel_02.prefab"),
+            Shape(ItemType.ScrapMetal,   Ithappy + "Props/Trash_02.prefab"),
+            Shape(ItemType.CrystalShard, PandaNature + "Coral_05.prefab"),
+            Shape(ItemType.RocketFuel,   PandaCity + "Prop_OilBerrel_01.prefab"),
+            Shape(ItemType.ShieldAlloy,  PandaCity + "Prop_StreetSign_Empty.prefab"),
+            Shape(ItemType.EMPCore,      PandaCity + "Prop_RoofVent_06.prefab"),
+            // Silah paketleri tek silüet (renk ayırt eder), modüller cihaz
+            Shape(ItemType.Sword,  SPoly + "Props/Props_Roof Antenna.prefab"),
+            Shape(ItemType.Laser,  SPoly + "Props/Props_Roof Antenna.prefab"),
+            Shape(ItemType.Rocket, SPoly + "Props/Props_Roof Antenna.prefab"),
+            Shape(ItemType.Shield, SPoly + "Props/Props_Roof Antenna.prefab"),
+            Shape(ItemType.EMP,    SPoly + "Props/Props_Roof Antenna.prefab"),
+            Shape(ItemType.RepairModule,      PandaCity + "Prop_Intel_04.prefab"),
+            Shape(ItemType.OverdriveModule,   PandaCity + "Prop_Intel_04.prefab"),
+            Shape(ItemType.TargetingComputer, PandaCity + "Prop_Intel_04.prefab"),
+        };
+
+        // ── Pastel palet: iç mekân renkleri şehirle aynı dile çekilir ───
+        // (Inspector'daki eski koyu değerleri SetField ile ezer)
+        Configure(this, "blueFloor",    new Color(0.72f, 0.80f, 0.93f));
+        Configure(this, "redFloor",     new Color(0.95f, 0.79f, 0.76f));
+        Configure(this, "blueAccent",   new Color(0.33f, 0.62f, 0.96f));
+        Configure(this, "redAccent",    new Color(0.96f, 0.45f, 0.40f));
+        Configure(this, "neutralFloor", new Color(0.90f, 0.89f, 0.85f));
+        Configure(this, "neutralMid",   new Color(0.82f, 0.81f, 0.77f));
+        Configure(this, "neutralLight", new Color(0.95f, 0.94f, 0.90f));
+        Configure(this, "crateGray",    new Color(0.80f, 0.78f, 0.74f));
+        Configure(this, "wallTone",     new Color(0.86f, 0.84f, 0.80f));
+        Configure(this, "barrierColor", new Color(0.98f, 0.62f, 0.35f));
+        Configure(this, "coreAccent",   new Color(0.20f, 0.80f, 0.85f));
 
         UnityEditor.EditorUtility.SetDirty(t);
 
@@ -239,12 +358,12 @@ public class MapGenerator : MonoBehaviour
         UnityEditor.EditorUtility.SetDirty(this);
         UnityEditor.AssetDatabase.SaveAssets();
 
-        Debug.Log("[MapGenerator] ✅ SciFi tema bağlandı (SciFiMapTheme.asset). " +
-                  "Şimdi Generate Map çalıştır + Ctrl+S.");
+        Debug.Log("[MapGenerator] ✅ Sevimli Şehir teması bağlandı " +
+                  "(CuteCityTheme.asset). Şimdi Generate Map + Ctrl+S.");
     }
 
-    private static GameObject LoadKitPrefab(string relativePath)
-        => LoadPrefabAt(KitPrefabRoot + relativePath + ".prefab");
+    private static MapTheme.ItemShape Shape(ItemType type, string assetPath) =>
+        new MapTheme.ItemShape { type = type, prefab = LoadPrefabAt(assetPath) };
 
     private static GameObject LoadPrefabAt(string assetPath)
     {
@@ -252,164 +371,8 @@ public class MapGenerator : MonoBehaviour
             .LoadAssetAtPath<GameObject>(assetPath);
         if (p == null)
             Debug.LogWarning("[MapGenerator] Prefab bulunamadı: " +
-                             assetPath + " — bu parça primitif kalacak.");
+                             assetPath + " — bu parça atlanacak.");
         return p;
-    }
-
-    // ── Stilize Atölye teması ────────────────────────────────────────────
-    // Sci-Fi Styled Modular Pack (mimari + makineler) + Stylized Fantasy
-    // Armory (atölye ekipmanları: örs, zanaat tezgahı, varil, silah rafı).
-    // İki paket de stilize — tutarlı, temiz bir görünüm. Ayrı asset'e yazar
-    // (StylizedMapTheme); eski temaya dönmek = Wire SciFi Theme + Generate.
-
-    private const string ModRoot =
-        "Assets/Sci-Fi Styled Modular Pack/Prefabs/";
-    private const string ArmoryRoot =
-        "Assets/Daniel Mistage/Stylized Fantasy Armory/";
-    private const string StylizedThemePath = "Assets/StylizedMapTheme.asset";
-
-    [ContextMenu("Wire Stylized Theme")]
-    private void WireStylizedTheme()
-    {
-        MapTheme t = UnityEditor.AssetDatabase
-            .LoadAssetAtPath<MapTheme>(StylizedThemePath);
-        if (t == null)
-        {
-            t = ScriptableObject.CreateInstance<MapTheme>();
-            UnityEditor.AssetDatabase.CreateAsset(t, StylizedThemePath);
-        }
-
-        // Zeminler — bölge başına farklı karo
-        t.floorTile      = LoadPrefabAt(ModRoot + "Floors/floor_2_blank.prefab");
-        t.scrapFloorTile = LoadPrefabAt(ModRoot + "Floors/floor_3.prefab");
-        t.platformFloor  = LoadPrefabAt(ModRoot + "Floors/floor_5.prefab");
-        t.depotBase      = LoadPrefabAt(ModRoot + "Floors/floor_1.prefab");
-
-        // Duvar & bariyer
-        t.wallPanel    = LoadPrefabAt(ModRoot + "Walls/Simple/decorative_wall_E.prefab");
-        t.pillar       = LoadPrefabAt(ModRoot +
-            "Decorative elements/Column/column_middle.prefab");
-        t.barrierFence = LoadPrefabAt(ModRoot +
-            "Walls/Half walls/decorative_half_wall_5.prefab");
-
-        // Proplar
-        t.crate = LoadPrefabAt(ModRoot + "Machines/container_small.prefab");
-
-        // İstasyon kabukları — makine/atölye kimliği
-        t.supplyShell    = LoadPrefabAt(ModRoot + "Machines/container_small.prefab");
-        t.processorShell = LoadPrefabAt(ModRoot + "Machines/generator.prefab");
-        t.weaponShell    = LoadPrefabAt(ArmoryRoot +
-            "Prefabs/Decorative Props/Anvil and Airblower/Anvil.prefab");
-        t.assemblyShell  = LoadPrefabAt(ArmoryRoot +
-            "Prefabs/Extra Content/Fantasy Workshops and Crafting Vol2/" +
-            "SFWC2_Crafting_Table.prefab");
-        t.trashShell     = LoadPrefabAt(ArmoryRoot +
-            "Prefabs/Decorative Props/Barrel/Barrel.001.prefab");
-        t.consoleShell   = LoadPrefabAt(ModRoot +
-            "Decorative elements/Tables/desk.prefab");
-        t.plasmaShell    = LoadPrefabAt(ModRoot + "Machines/Battery_big.prefab");
-
-        // Kaideler — şasi holo-projektör üstünde sergilenir
-        t.stationBase     = LoadPrefabAt(ModRoot + "Floors/floor_1.prefab");
-        t.chassisPedestal = LoadPrefabAt(ModRoot + "Machines/projector.prefab");
-
-        // Atmosfer: mavi duvar lambası + silah rafı + raf (atölye kimliği)
-        t.decorProps = new[]
-        {
-            LoadPrefabAt(ModRoot + "Lights/light_wall_1_blue.prefab"),
-            LoadPrefabAt(ArmoryRoot + "Prefabs/Combinations/WeaponRack.001.prefab"),
-            LoadPrefabAt(ArmoryRoot + "Prefabs/Combinations/Shelve.001.prefab"),
-        };
-        t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
-            ArmoryRoot + "Materials/Skybox/Skybox.mat");
-        if (t.skybox == null)
-            Debug.LogWarning("[MapGenerator] Armory skybox bulunamadı — " +
-                             "mevcut gökyüzü korunacak.");
-
-        UnityEditor.EditorUtility.SetDirty(t);
-
-        theme = t;
-        UnityEditor.EditorUtility.SetDirty(this);
-        UnityEditor.AssetDatabase.SaveAssets();
-
-        Debug.Log("[MapGenerator] ✅ Stilize Atölye teması bağlandı " +
-                  "(StylizedMapTheme.asset). Şimdi Generate Map + Ctrl+S.");
-    }
-
-    // ── Ortaçağ (Fantasy Armory) teması ──────────────────────────────────
-    // Tamamen Stylized Fantasy Armory: ahşap çit duvarlar/bariyerler, kütük
-    // sütunlar, sandık/körük/kazan/örs/tezgah/varil istasyonları, meşale +
-    // silah rafı dekorları. Pakette zemin karosu yok — zeminler koyu taş
-    // tonlu primitif kalır (stilize düz renk).
-
-    private const string MedievalThemePath = "Assets/MedievalMapTheme.asset";
-
-    [ContextMenu("Wire Medieval Theme")]
-    private void WireMedievalTheme()
-    {
-        MapTheme t = UnityEditor.AssetDatabase
-            .LoadAssetAtPath<MapTheme>(MedievalThemePath);
-        if (t == null)
-        {
-            t = ScriptableObject.CreateInstance<MapTheme>();
-            UnityEditor.AssetDatabase.CreateAsset(t, MedievalThemePath);
-        }
-
-        string props = ArmoryRoot + "Prefabs/Decorative Props/";
-        string combo = ArmoryRoot + "Prefabs/Combinations/";
-
-        // Zemin karoları yok → null bırak (primitif taş rengi zemin)
-        t.floorTile      = null;
-        t.scrapFloorTile = null;
-        t.platformFloor  = null;
-        t.depotBase      = null;
-
-        // Duvar & bariyer: ahşap çitler y'de istiflenir; sütun = kütük
-        t.wallPanel    = LoadPrefabAt(props + "Fences/Fence.002.prefab");
-        t.barrierFence = LoadPrefabAt(props + "Fences/Fence.001.prefab");
-        t.pillar       = LoadPrefabAt(ArmoryRoot +
-            "Prefabs/Nature/Wooden Logs/WoodenLog.001.prefab");
-
-        // Proplar
-        t.crate = LoadPrefabAt(props + "Box/Box.001.prefab");
-
-        // İstasyonlar: atölye ekipmanları
-        t.supplyShell    = LoadPrefabAt(props + "Chest/ChestS.001.prefab");
-        t.processorShell = LoadPrefabAt(props +
-            "Anvil and Airblower/Airblower.prefab");          // Körük
-        t.weaponShell    = LoadPrefabAt(props +
-            "Anvil and Airblower/Anvil.prefab");              // Örs
-        t.assemblyShell  = LoadPrefabAt(ArmoryRoot +
-            "Prefabs/Extra Content/Fantasy Workshops and Crafting Vol2/" +
-            "SFWC2_Crafting_Table.prefab");
-        t.trashShell     = LoadPrefabAt(props + "Barrel/Barrel.001.prefab");
-        t.consoleShell   = LoadPrefabAt(combo + "Table 1.prefab");
-        t.plasmaShell    = LoadPrefabAt(props +
-            "Cauldron and Campfire/CauldronandCampfire.prefab"); // Kazan
-
-        // Kaideler: pakette plaka yok — şasiler yerde sergilenir
-        t.stationBase     = null;
-        t.chassisPedestal = null;
-
-        // Atmosfer: meşaleler + silah rafı + raf
-        t.decorProps = new[]
-        {
-            LoadPrefabAt(ArmoryRoot + "Prefabs/Armory Structure and " +
-                "Attachables/Armory Attachables/BuildingTorch.001.prefab"),
-            LoadPrefabAt(combo + "WeaponRack.001.prefab"),
-            LoadPrefabAt(combo + "Shelve.001.prefab"),
-        };
-        t.skybox = UnityEditor.AssetDatabase.LoadAssetAtPath<Material>(
-            ArmoryRoot + "Materials/Skybox/Skybox.mat");
-
-        UnityEditor.EditorUtility.SetDirty(t);
-
-        theme = t;
-        UnityEditor.EditorUtility.SetDirty(this);
-        UnityEditor.AssetDatabase.SaveAssets();
-
-        Debug.Log("[MapGenerator] ✅ Ortaçağ teması bağlandı " +
-                  "(MedievalMapTheme.asset). Şimdi Generate Map + Ctrl+S.");
     }
 #endif
 
@@ -514,23 +477,36 @@ public class MapGenerator : MonoBehaviour
             sign < 0 ? blueFloor : redFloor, Color.white, 0.12f);
         CreatePad("Şasi Platformu",
             new Vector3(centerX, 0f, 0f), new Vector2(5f, 16f), platform);
+
+        // Garaj aydınlatması — takım tonlu iki tepe ışığı
+        Color glow = Color.Lerp(accent, Color.white, 0.55f);
+        AddAreaLight($"Garaj Işığı 1", new Vector3(centerX, 3.6f, -4.5f),
+            glow, 11f, 1.5f);
+        AddAreaLight($"Garaj Işığı 2", new Vector3(centerX, 3.6f, 4.5f),
+            glow, 11f, 1.5f);
     }
 
     // ── Tarafsız Orta Bölge (Hurdalık — gri tonlar) ──────────────────────
 
     private void BuildScrapyard()
     {
-        float halfD = garageDepth / 2f;
+        // Hurdalık artık garajların ÜSTÜNDE yatay şerit: z 10..26.
+        // Orta kolon (x ±7) kapan bölgesi; yan bantlar takım atölyeleri.
+        float zC = garageDepth / 2f + ScrapDepth / 2f;   // Şerit merkezi
 
         // İç zemin katmanı — kenarlardan bir tık açık gri
         CreatePad("Hurdalık İç Zemin",
-            Vector3.zero, new Vector2(ScrapyardWidth - 2f, garageDepth - 2f),
+            new Vector3(0f, 0f, zC), new Vector2(totalWidth - 2f, ScrapDepth - 2f),
             neutralMid, 0.015f);
 
-        // Geçitleri birbirine bağlayan yürüyüş yolu
+        // Kapan şeridi boyunca yürüyüş yolu
         CreatePad("Yürüyüş Yolu",
-            Vector3.zero, new Vector2(ScrapyardWidth - 0.5f, 2.2f),
+            new Vector3(0f, 0f, zC), new Vector2(2.2f, ScrapDepth - 1f),
             neutralLight, 0.03f);
+
+        // Hurdalık tepe aydınlatması — soğuk endüstriyel beyaz
+        AddAreaLight("Hurdalık Işığı",
+            new Vector3(0f, 4.2f, zC), new Color(0.85f, 0.92f, 1f), 16f, 1.6f);
 
         // Orta kolon: 5 ham madde hurdalığı
         (ItemType type, string name)[] scraps =
@@ -544,7 +520,7 @@ public class MapGenerator : MonoBehaviour
 
         for (int i = 0; i < scraps.Length; i++)
         {
-            float z = -8f + i * 4f;
+            float z = garageDepth / 2f + 2f + i * 3f;   // 12, 15, 18, 21, 24
             ScrapyardStation s = Place<ScrapyardStation>(scrapyardStationPrefab,
                 $"Hurdalık - {scraps[i].name}",
                 new Vector3(0f, 0f, z));
@@ -560,45 +536,40 @@ public class MapGenerator : MonoBehaviour
         // Yan bantlar: her takım tarafında TAM atölye seti + plazma kaynağı.
         // Bantlar Hurdalık Penceresi bariyerlerinin (x ±7) DIŞINDA kalır —
         // pencere kapalıyken de silah üretimi ve plazma akışı hiç kilitlenmez.
+        // Yan bantlar (x ±7 bariyerlerinin dışı): tam atölye seti + plazma —
+        // pencere kapalıyken de üretim hiç kilitlenmez
+        float bandZ0 = garageDepth / 2f + 1.5f;   // 11.5
         foreach (int sign in new[] { -1, +1 })
         {
-            float bx = sign * 9f;
+            float bx = sign * 10.5f;
             string side = sign < 0 ? "Mavi Taraf" : "Kırmızı Taraf";
 
-            BuildWeaponCraft(new Vector3(bx, 0f, -8.5f), ItemType.ScrapMetal,   ItemType.Sword,  "Kılıç",  "Hurda Metal");
-            BuildWeaponCraft(new Vector3(bx, 0f, -5.1f), ItemType.CrystalShard, ItemType.Laser,  "Lazer",  "Kristal Kıymık");
-            BuildWeaponCraft(new Vector3(bx, 0f, -1.7f), ItemType.RocketFuel,   ItemType.Rocket, "Roket",  "Roket Yakıtı");
-            BuildWeaponCraft(new Vector3(bx, 0f,  1.7f), ItemType.ShieldAlloy,  ItemType.Shield, "Kalkan", "Kalkan Alaşımı");
-            BuildWeaponCraft(new Vector3(bx, 0f,  5.1f), ItemType.EMPCore,      ItemType.EMP,    "EMP",    "EMP Çekirdeği");
+            BuildWeaponCraft(new Vector3(bx, 0f, bandZ0),          ItemType.ScrapMetal,   ItemType.Sword,  "Kılıç",  "Hurda Metal");
+            BuildWeaponCraft(new Vector3(bx, 0f, bandZ0 + 3f),     ItemType.CrystalShard, ItemType.Laser,  "Lazer",  "Kristal Kıymık");
+            BuildWeaponCraft(new Vector3(bx, 0f, bandZ0 + 6f),     ItemType.RocketFuel,   ItemType.Rocket, "Roket",  "Roket Yakıtı");
+            BuildWeaponCraft(new Vector3(bx, 0f, bandZ0 + 9f),     ItemType.ShieldAlloy,  ItemType.Shield, "Kalkan", "Kalkan Alaşımı");
+            BuildWeaponCraft(new Vector3(bx, 0f, bandZ0 + 12f),    ItemType.EMPCore,      ItemType.EMP,    "EMP",    "EMP Çekirdeği");
 
             PlasmaSource plasma = Place<PlasmaSource>(plasmaSourcePrefab,
-                $"Plazma Kaynağı [{side}]", new Vector3(bx, 0f, 8.5f));
+                $"Plazma Kaynağı [{side}]",
+                new Vector3(sign * 16f, 0f, bandZ0 + 6f));
             StationVisuals.DecoratePlasmaSource(plasma?.gameObject);
         }
 
-        // Dekor: siper sandıkları — gri tonlarda, çeşitli boylar
-        CreateCrate("Sandık 1", new Vector3(-2.6f,  0f,  5.2f), 1.3f,  18f);
-        CreateCrate("Sandık 2", new Vector3( 2.6f,  0f,  5.6f), 1.0f, -25f);
-        CreateCrate("Sandık 3", new Vector3( 2.8f,  0f, -5.4f), 1.4f,  40f);
-        CreateCrate("Sandık 4", new Vector3(-2.7f,  0f, -5.8f), 1.1f, -12f);
-        CreateCrate("Sandık 5", new Vector3( 6.3f,  0f,  8.2f), 0.9f,  30f);
-        CreateCrate("Sandık 6", new Vector3(-6.3f,  0f, -8.4f), 0.9f, -35f);
+        // Dekor: siper sandıkları — kapan şeridi içinde
+        float zMid = garageDepth / 2f + ScrapDepth / 2f;
+        CreateCrate("Sandık 1", new Vector3(-3.2f, 0f, zMid + 3.5f), 1.3f,  18f);
+        CreateCrate("Sandık 2", new Vector3( 3.0f, 0f, zMid + 4.2f), 1.0f, -25f);
+        CreateCrate("Sandık 3", new Vector3( 3.2f, 0f, zMid - 3.8f), 1.4f,  40f);
+        CreateCrate("Sandık 4", new Vector3(-3.0f, 0f, zMid - 4.4f), 1.1f, -12f);
+        CreateCrate("Sandık 5", new Vector3( 5.4f, 0f, zMid + 6.4f), 0.9f,  30f);
+        CreateCrate("Sandık 6", new Vector3(-5.4f, 0f, zMid - 6.4f), 0.9f, -35f);
 
-        // Dekor: köşe sütunları — hafif siper
-        CreatePillar("Sütun 1", new Vector3(-2.5f, 0f,  8.6f));
-        CreatePillar("Sütun 2", new Vector3( 2.5f, 0f,  8.6f));
-        CreatePillar("Sütun 3", new Vector3(-2.5f, 0f, -8.6f));
-        CreatePillar("Sütun 4", new Vector3( 2.5f, 0f, -8.6f));
-
-        // Geçit işaretleri — garaj sınırındaki kapı ağızları
-        float gateAx = teamACenter + garageWidth / 2f;
-        float gateBx = teamBCenter - garageWidth / 2f;
-        CreatePad("Geçit İşareti (Mavi)",
-            new Vector3(gateAx, 0f, 0f), new Vector2(1.2f, garageDepth / 2f),
-            neutralLight, 0.03f);
-        CreatePad("Geçit İşareti (Kırmızı)",
-            new Vector3(gateBx, 0f, 0f), new Vector2(1.2f, garageDepth / 2f),
-            neutralLight, 0.03f);
+        // Dekor: kapan köşe sütunları
+        CreatePillar("Sütun 1", new Vector3(-2.5f, 0f, zMid + 6.8f));
+        CreatePillar("Sütun 2", new Vector3( 2.5f, 0f, zMid + 6.8f));
+        CreatePillar("Sütun 3", new Vector3(-2.5f, 0f, zMid - 6.8f));
+        CreatePillar("Sütun 4", new Vector3( 2.5f, 0f, zMid - 6.8f));
     }
 
     /// <summary>
@@ -677,87 +648,87 @@ public class MapGenerator : MonoBehaviour
     }
 
     /// <summary>
-    /// Ön duvarın ötesinde uçarak ulaşılan ödül platformu + bariyerler +
-    /// DroneRaidZone yöneticisi. Oyuncu yürüyerek giremez (duvar + boşluk).
+    /// Çekirdek Bölge (v4): fabrika içinde YÜKSEK SEVKİYAT RAFI — hurdalık
+    /// üst duvarına bitişik, yerden 3.4m. Oyuncu ulaşamaz; drone 4.2'de
+    /// uçarken üstünden kapar (kapma yatay mesafeye bakar). Ön yüzünde
+    /// tek enerji perdesi: pencere açılınca yere gömülür.
     /// </summary>
     private void BuildDroneRaidZone()
     {
-        float halfD   = garageDepth / 2f;
-        float coreZ   = halfD + CoreZoneGap + CoreZoneDepth / 2f;
-        Vector3 center = new Vector3(0f, 0f, coreZ);
+        float topZ    = garageDepth / 2f + ScrapDepth;        // 26
+        float shelfZ  = topZ - ShelfDepth / 2f;               // Raf merkezi (24)
+        float frontZ  = topZ - ShelfDepth;                    // Raf ön kenarı (22)
+        Vector3 shelfTop = new Vector3(0f, ShelfTopY, shelfZ);
 
-        // Platform zemini
+        // Raf tablası — kalın plaka, altı destek kolonlu
         if (HasTheme && theme.platformFloor != null)
         {
-            FillBox(theme.platformFloor, "Çekirdek Platform Zemini",
-                MapPos(new Vector3(0f, -0.5f, coreZ)),
-                new Vector3(CoreZoneWidth, 1f, CoreZoneDepth),
+            FillBox(theme.platformFloor, "Sevkiyat Rafı",
+                MapPos(new Vector3(0f, ShelfTopY - 0.2f, shelfZ)),
+                new Vector3(ShelfWidth, 0.4f, ShelfDepth),
                 keepCollider: true, stretchY: false);
-            AddFloorSlab("Çekirdek Platform Zemini",
-                MapPos(new Vector3(0f, -0.5f, coreZ)),
-                new Vector3(CoreZoneWidth, 1f, CoreZoneDepth));
         }
         else
         {
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            floor.name = "Çekirdek Platform Zemini";
-            floor.transform.SetParent(transform);
-            floor.transform.position   = MapPos(new Vector3(0f, -0.5f, coreZ));
-            floor.transform.localScale = new Vector3(CoreZoneWidth, 1f, CoreZoneDepth);
-            ApplyColor(floor, neutralFloor);
+            GameObject plate = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            plate.name = "Sevkiyat Rafı";
+            plate.transform.SetParent(transform);
+            plate.transform.position   = MapPos(new Vector3(0f, ShelfTopY - 0.2f, shelfZ));
+            plate.transform.localScale = new Vector3(ShelfWidth, 0.4f, ShelfDepth);
+            ApplyColor(plate, neutralMid);
         }
 
-        // Neon çerçeve + köşe direkleri — çekirdek bölge kimliği
-        CreatePad("Çekirdek Çerçeve (ön)",
-            new Vector3(0f, 0f, coreZ + CoreZoneDepth / 2f - 0.4f),
-            new Vector2(CoreZoneWidth - 0.6f, 0.35f), coreAccent);
-        CreatePad("Çekirdek Çerçeve (arka)",
-            new Vector3(0f, 0f, coreZ - CoreZoneDepth / 2f + 0.4f),
-            new Vector2(CoreZoneWidth - 0.6f, 0.35f), coreAccent);
-        CreatePad("Çekirdek Çerçeve (sol)",
-            new Vector3(-CoreZoneWidth / 2f + 0.4f, 0f, coreZ),
-            new Vector2(0.35f, CoreZoneDepth - 0.6f), coreAccent);
-        CreatePad("Çekirdek Çerçeve (sağ)",
-            new Vector3(CoreZoneWidth / 2f - 0.4f, 0f, coreZ),
-            new Vector2(0.35f, CoreZoneDepth - 0.6f), coreAccent);
+        // Destek kolonları — raf altı
+        for (int i = -2; i <= 2; i++)
+        {
+            GameObject leg = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            leg.name = $"Raf Kolonu ({i})";
+            leg.transform.SetParent(transform);
+            leg.transform.position   = MapPos(new Vector3(
+                i * (ShelfWidth / 2f - 1f) / 2f, (ShelfTopY - 0.4f) / 2f, shelfZ));
+            leg.transform.localScale = new Vector3(
+                0.45f, ShelfTopY - 0.4f, 0.45f);
+            ApplyColor(leg, wallTone);
+        }
 
-        // Enerji bariyerleri — kapalıyken platformu çevreler, açılınca gömülür
-        Transform[] barriers = new Transform[4];
-        barriers[0] = CreateBarrier("Bariyer (ön)",
-            new Vector3(0f, 0f, coreZ + CoreZoneDepth / 2f),
-            new Vector3(CoreZoneWidth, 6f, 0.3f));
-        barriers[1] = CreateBarrier("Bariyer (arka)",
-            new Vector3(0f, 0f, coreZ - CoreZoneDepth / 2f),
-            new Vector3(CoreZoneWidth, 6f, 0.3f));
-        barriers[2] = CreateBarrier("Bariyer (sol)",
-            new Vector3(-CoreZoneWidth / 2f, 0f, coreZ),
-            new Vector3(0.3f, 6f, CoreZoneDepth));
-        barriers[3] = CreateBarrier("Bariyer (sağ)",
-            new Vector3(CoreZoneWidth / 2f, 0f, coreZ),
-            new Vector3(0.3f, 6f, CoreZoneDepth));
+        // Raf ön kenarı neon hattı — çekirdek bölge kimliği
+        GameObject edge = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        edge.name = "Raf Neon Hattı";
+        edge.transform.SetParent(transform);
+        edge.transform.position   = MapPos(new Vector3(0f, ShelfTopY + 0.02f, frontZ + 0.15f));
+        edge.transform.localScale = new Vector3(ShelfWidth - 0.4f, 0.07f, 0.12f);
+        if (edge.TryGetComponent<Collider>(out Collider ec)) DestroyImmediate(ec);
+        ApplyColor(edge, coreAccent);
+
+        // Enerji perdesi — raf önünde, raf hizasından tavana; açılınca gömülür
+        Transform[] barriers = new Transform[1];
+        barriers[0] = CreateBarrier("Raf Perdesi",
+            new Vector3(0f, 0f, frontZ),
+            new Vector3(ShelfWidth, FactoryWallH - ShelfTopY + 0.2f, 0.3f));
+        barriers[0].position += Vector3.up * (ShelfTopY - 0.2f);
+        // (Bariyer animasyonu kapalı konumu Awake'te ezberler — yükseltilmiş
+        //  pozisyon otomatik "kapalı" kabul edilir, gömülünce yere iner)
 
         // Zone yöneticisi + kablolar
         GameObject zoneObj = new GameObject("Çekirdek Bölge");
         zoneObj.transform.SetParent(transform);
-        zoneObj.transform.position = MapPos(center);
+        zoneObj.transform.position = MapPos(shelfTop);
 
         DroneRaidZone zone = zoneObj.AddComponent<DroneRaidZone>();
-        Configure(zone, "platformCenter", MapPos(center));
-        Configure(zone, "platformSize",   new Vector2(CoreZoneWidth, CoreZoneDepth));
-        Configure(zone, "mapEdgeZ",       transform.position.z + halfD);
+        Configure(zone, "platformCenter", MapPos(shelfTop));
+        Configure(zone, "platformSize",   new Vector2(ShelfWidth, ShelfDepth));
+        Configure(zone, "mapEdgeZ",       transform.position.z + frontZ);
         Configure(zone, "barriers",       barriers);
         Configure(zone, "blueDrone",      blueDrone);
         Configure(zone, "redDrone",       redDrone);
         TryAssignPrefab(zone, "itemPrefab", "PlasmaCore_Prefab");
 
-        // Drone uçuş sınırları (dünya koordinatı): tüm harita + platform
-        float mapLeft  = teamACenter - garageWidth / 2f;
-        float mapRight = teamBCenter + garageWidth / 2f;
+        // Drone uçuş sınırları — fabrika içi (raf dahil)
         Vector4 bounds = new Vector4(
-            transform.position.x + mapLeft  + 1f,
-            transform.position.x + mapRight - 1f,
-            transform.position.z - halfD + 1f,
-            transform.position.z + coreZ + CoreZoneDepth / 2f - 0.5f);
+            transform.position.x - totalWidth / 2f + 1f,
+            transform.position.x + totalWidth / 2f - 1f,
+            transform.position.z - garageDepth / 2f + 1f,
+            transform.position.z + topZ - 0.6f);
         Configure(blueDrone, "flightBounds", bounds);
         Configure(redDrone,  "flightBounds", bounds);
     }
@@ -861,39 +832,42 @@ public class MapGenerator : MonoBehaviour
     /// </summary>
     private void BuildScrapWindow()
     {
-        float halfD = garageDepth / 2f;
+        // Kapan şeridi: x ±7, z 10..26 (hurdalık şeridinin orta kolonu)
         const float zoneHalfW = 7f;
+        float zLo = garageDepth / 2f;              // 10
+        float zHi = zLo + ScrapDepth;              // 26
+        float zC  = (zLo + zHi) / 2f;              // 18
 
         Transform[] barriers = new Transform[2];
         barriers[0] = CreateBarrier("Hurdalık Bariyeri (Mavi taraf)",
-            new Vector3(-zoneHalfW, 0f, 0f),
-            new Vector3(0.35f, 3.5f, garageDepth), keepCollider: true);
+            new Vector3(-zoneHalfW, 0f, zC),
+            new Vector3(0.35f, 3.5f, ScrapDepth), keepCollider: true);
         barriers[1] = CreateBarrier("Hurdalık Bariyeri (Kırmızı taraf)",
-            new Vector3(zoneHalfW, 0f, 0f),
-            new Vector3(0.35f, 3.5f, garageDepth), keepCollider: true);
+            new Vector3(zoneHalfW, 0f, zC),
+            new Vector3(0.35f, 3.5f, ScrapDepth), keepCollider: true);
 
-        // Kapı ağızları — pencere kapanınca içeridekiler buraya ışınlanır
-        Vector3 blueGate = MapPos(new Vector3(teamACenter + garageWidth / 2f - 2f, 0f, 0f));
-        Vector3 redGate  = MapPos(new Vector3(teamBCenter - garageWidth / 2f + 2f, 0f, 0f));
+        // Kapı ağızları (bariyer dışı, bant tarafı) — kapanış ışınlaması
+        Vector3 blueGate = MapPos(new Vector3(-zoneHalfW - 1.6f, 0f, zC));
+        Vector3 redGate  = MapPos(new Vector3( zoneHalfW + 1.6f, 0f, zC));
 
         GameObject zoneObj = new GameObject("Hurdalık Penceresi");
         zoneObj.transform.SetParent(transform);
-        zoneObj.transform.position = MapPos(Vector3.zero);
+        zoneObj.transform.position = MapPos(new Vector3(0f, 0f, zC));
 
         ScrapWindowZone zone = zoneObj.AddComponent<ScrapWindowZone>();
         Configure(zone, "zoneRect", new Vector4(
             transform.position.x - zoneHalfW, transform.position.x + zoneHalfW,
-            transform.position.z - halfD,     transform.position.z + halfD));
+            transform.position.z + zLo,       transform.position.z + zHi));
         Configure(zone, "blueEvictPoint", blueGate);
         Configure(zone, "redEvictPoint",  redGate);
         Configure(zone, "barriers",       barriers);
         TryAssignPrefab(zone, "lootPrefab", "ScrapMetal_Prefab");
 
-        // Takım depoları — kapan sırasında toplanan malzemenin güvenli yeri
+        // Takım depoları — kapanın garaj tarafı köşeleri
         Transform blueDepot = CreateDepot("Mavi Depo",
-            new Vector3(-5.2f, 0f, -6.8f), blueAccent);
+            new Vector3(-5.0f, 0f, zLo + 2.2f), blueAccent);
         Transform redDepot  = CreateDepot("Kırmızı Depo",
-            new Vector3(5.2f, 0f, -6.8f), redAccent);
+            new Vector3(5.0f, 0f, zLo + 2.2f), redAccent);
         Configure(zone, "blueDepotAnchor", blueDepot);
         Configure(zone, "redDepotAnchor",  redDepot);
 
@@ -958,7 +932,8 @@ public class MapGenerator : MonoBehaviour
     /// (bariyer animasyonu gibi hareket ettirilecek şeyler için).
     /// </summary>
     private Transform FillBox(GameObject module, string boxName, Vector3 center,
-        Vector3 size, bool keepCollider, bool stretchY, bool stackY = false)
+        Vector3 size, bool keepCollider, bool stretchY, bool stackY = false,
+        bool upsideDown = false)
     {
         GameObject container = new GameObject(boxName);
         container.transform.SetParent(transform);
@@ -996,8 +971,8 @@ public class MapGenerator : MonoBehaviour
         for (int iy = 0; iy < ny; iy++)
         {
             GameObject piece = Instantiate(module, container.transform);
-            piece.transform.rotation = rotate
-                ? Quaternion.Euler(0f, 90f, 0f) : Quaternion.identity;
+            piece.transform.rotation = Quaternion.Euler(
+                upsideDown ? 180f : 0f, rotate ? 90f : 0f, 0f);
             piece.transform.localScale =
                 Vector3.Scale(piece.transform.localScale, pieceScale);
 
@@ -1037,6 +1012,411 @@ public class MapGenerator : MonoBehaviour
     /// <summary>Tema asset'i atanmış mı? (alan bazında ayrıca null kontrolü
     /// yapılır — kısmi doldurulmuş tema desteklenir)</summary>
     private bool HasTheme => theme != null;
+
+    /// <summary>
+    /// Tesisin oturduğu dev dış saha: koyu beton plaka + çevre aksan
+    /// şeritleri. Üst yüzü -0.05'te — harita güvertesi 5cm taşar
+    /// (temel üstü tesis görünümü), z-fight olmaz. Collider'lı: drone
+    /// kovalarken harita dışına düşen item olursa yerde kalır.
+    /// </summary>
+    private void BuildOuterGround()
+    {
+        const float size = 400f;
+
+        GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        ground.name = "Dış Saha (beton)";
+        ground.transform.SetParent(transform);
+        ground.transform.position   = MapPos(new Vector3(0f, -0.55f, 0f));
+        ground.transform.localScale = new Vector3(size, 1f, size);
+        ApplyColor(ground, new Color(0.14f, 0.145f, 0.16f));
+
+        // Tesis çevresi ikaz şeridi — "teknoloji sahası" kimliği
+        float frontZ = garageDepth / 2f + ScrapDepth;   // Hurdalık üst sınırı
+        float backZ  = -garageDepth / 2f;               // Cadde tarafı
+        float w      = totalWidth + wallThickness * 4f;
+        CreatePad("Saha Şeridi (ön)",
+            new Vector3(0f,  0f,  frontZ + wallThickness * 2f + 0.6f),
+            new Vector2(w, 0.5f), coreAccent, yOffset: -0.03f);
+        CreatePad("Saha Şeridi (arka)",
+            new Vector3(0f,  0f,  backZ - wallThickness * 2f - 0.6f),
+            new Vector2(w, 0.5f), coreAccent, yOffset: -0.03f);
+    }
+
+    // ── Mahalle: caddeler, kaldırım, lambalar, çevre binalar ─────────────
+    // Tamamı dekoratif (oynanış dışı) — tesis "gelişmiş bir mahalledeki
+    // teknoloji garajı" gibi otursun. Binalar tema panellerinden döşenir,
+    // tema yoksa koyu bloklar + neon şerit.
+
+    private void BuildNeighborhood()
+    {
+        Color asphalt = new Color(0.095f, 0.095f, 0.11f);
+        Color lane    = new Color(0.82f, 0.82f, 0.76f);
+        Color walkway = new Color(0.55f, 0.55f, 0.52f);
+        float backZ   = -garageDepth / 2f;
+
+        // Deterministik dizilim: her Generate aynı mahalleyi kurar
+        // (MP'de iki makine aynı sahneyi yükler — yine de garanti olsun)
+        Random.State saved = Random.state;
+        Random.InitState(4242);
+
+        bool cute = HasTheme && theme.cityBuildings != null &&
+                    theme.cityBuildings.Length > 0;
+
+        // Kaldırım — tesisin cadde tarafı
+        CreatePad("Kaldırım",
+            new Vector3(0f, 0f, backZ - 2.4f),
+            new Vector2(totalWidth + 10f, 3.8f), walkway, -0.02f);
+
+        // Ana cadde: kit yol karoları, yoksa asfalt pad + çizgiler
+        if (cute && theme.roadStraight != null)
+        {
+            FillBox(theme.roadStraight, "Ana Cadde",
+                MapPos(new Vector3(0f, -0.06f, backZ - 8f)),
+                new Vector3(130f, 0.12f, 7.5f),
+                keepCollider: false, stretchY: false);
+            FillBox(theme.roadStraight, "Yan Cadde (batı)",
+                MapPos(new Vector3(-42f, -0.06f, 8f)),
+                new Vector3(7.5f, 0.12f, 120f),
+                keepCollider: false, stretchY: false);
+            FillBox(theme.roadStraight, "Yan Cadde (doğu)",
+                MapPos(new Vector3(42f, -0.06f, 8f)),
+                new Vector3(7.5f, 0.12f, 120f),
+                keepCollider: false, stretchY: false);
+        }
+        else
+        {
+            CreatePad("Ana Cadde",
+                new Vector3(0f, 0f, backZ - 8f), new Vector2(130f, 7.5f),
+                asphalt, -0.025f);
+            for (float x = -60f; x <= 60f; x += 6f)
+                CreatePad($"Şerit Çizgisi ({x:0})",
+                    new Vector3(x, 0f, backZ - 8f), new Vector2(2.2f, 0.28f),
+                    lane, -0.015f);
+            CreatePad("Yan Cadde (batı)",
+                new Vector3(-42f, 0f, 8f), new Vector2(7.5f, 120f), asphalt, -0.025f);
+            CreatePad("Yan Cadde (doğu)",
+                new Vector3(42f, 0f, 8f), new Vector2(7.5f, 120f), asphalt, -0.025f);
+        }
+
+        // Sokak lambaları — kit prefabı varsa o, yoksa prosedürel
+        for (float x = -48f; x <= 48f; x += 16f)
+        {
+            Vector3 pos = new Vector3(x, 0f, backZ - 4.6f);
+            if (cute && theme.streetLight != null)
+            {
+                GameObject lampObj = Instantiate(theme.streetLight, transform);
+                lampObj.name = $"Sokak Lambası ({x:0})";
+                lampObj.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+                FitToFootprint(lampObj, MapPos(pos), 1.6f, 5.5f);
+                AddAreaLight($"Sokak Işığı ({x:0})",
+                    pos + Vector3.up * 4.2f, new Color(1f, 0.88f, 0.68f), 9f, 2.1f);
+            }
+            else BuildStreetLamp(pos);
+        }
+
+        // Binalar: karşı sıra + yan parseller — kit binaları, yoksa bloklar
+        if (cute)
+        {
+            float bz = backZ - 19f;
+            int   bi = 0;
+            for (float x = -40f; x <= 40f; x += 16f, bi++)
+                PlaceCityBuilding($"Bina {bi}",
+                    theme.cityBuildings[bi % theme.cityBuildings.Length],
+                    new Vector3(x + Random.Range(-1.5f, 1.5f), 0f, bz),
+                    yaw: 0f);
+
+            // Yan parseller — yüzleri tesise dönük
+            PlaceCityBuilding("Bina Yan (doğu)",
+                theme.cityBuildings[1 % theme.cityBuildings.Length],
+                new Vector3(32f, 0f, 16f), yaw: -90f);
+            PlaceCityBuilding("Bina Yan (doğu 2)",
+                theme.cityBuildings[3 % theme.cityBuildings.Length],
+                new Vector3(32f, 0f, 0f), yaw: -90f);
+
+            // Batı tarafı: mini park (ağaç + çalı + bank)
+            BuildMiniPark(new Vector3(-31f, 0f, 6f));
+        }
+        else
+        {
+            float bz = backZ - 17f;
+            BuildCityBlock("Bina A", new Vector3(-34f, 0f, bz),      new Vector3(14f,  9f, 10f));
+            BuildCityBlock("Bina B", new Vector3(-13f, 0f, bz - 2f), new Vector3(12f, 13f, 11f));
+            BuildCityBlock("Bina C", new Vector3(  6f, 0f, bz),      new Vector3(10f,  7f,  9f));
+            BuildCityBlock("Bina D", new Vector3( 26f, 0f, bz - 1f), new Vector3(15f, 11f, 10f));
+            BuildCityBlock("Bina E", new Vector3(-33f, 0f, 20f),     new Vector3(10f,  8f, 12f));
+            BuildCityBlock("Bina F", new Vector3( 33f, 0f, 20f),     new Vector3(10f, 10f, 12f));
+        }
+
+        if (cute)
+        {
+            // Park halinde araçlar — kaldırım kenarı
+            if (theme.cityCars != null && theme.cityCars.Length > 0)
+                for (int i = 0; i < 5; i++)
+                {
+                    float cx = -28f + i * 13f + Random.Range(-1f, 1f);
+                    GameObject car = Instantiate(
+                        theme.cityCars[Random.Range(0, theme.cityCars.Length)],
+                        transform);
+                    car.name = $"Park Araç {i}";
+                    car.transform.rotation = Quaternion.Euler(
+                        0f, Random.value > 0.5f ? 90f : -90f, 0f);
+                    FitToFootprint(car, MapPos(new Vector3(cx, 0f, backZ - 5.4f)),
+                        4.6f, 3f);
+                }
+
+            // Tesis çevresi ağaç dizisi — yan duvarların dışı
+            if (theme.cityTrees != null && theme.cityTrees.Length > 0)
+                foreach (int sign in new[] { -1, 1 })
+                    for (float z = -6f; z <= 24f; z += 7.5f)
+                    {
+                        GameObject tree = Instantiate(
+                            theme.cityTrees[Random.Range(0, theme.cityTrees.Length)],
+                            transform);
+                        tree.name = $"Ağaç ({sign * 23:0},{z:0})";
+                        tree.transform.rotation =
+                            Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                        FitToFootprint(tree,
+                            MapPos(new Vector3(sign * 23.2f, 0f, z + Random.Range(-1f, 1f))),
+                            4f, 7f);
+                    }
+
+            // Sokak propları — durak, hidrant, tabela, koni
+            if (theme.cityProps != null && theme.cityProps.Length >= 5)
+            {
+                PlaceCityProp(theme.cityProps[0], "Otobüs Durağı",
+                    new Vector3(14f, 0f, backZ - 2.6f), 180f, 3.4f, 3f);
+                PlaceCityProp(theme.cityProps[1], "Hidrant",
+                    new Vector3(-16f, 0f, backZ - 2.2f), 0f, 0.7f, 1.2f);
+                PlaceCityProp(theme.cityProps[3], "Tabela",
+                    new Vector3(4f, 0f, backZ - 2.2f), 180f, 0.8f, 2.6f);
+                PlaceCityProp(theme.cityProps[4], "Koni 1",
+                    new Vector3(-6.5f, 0f, backZ - 3.4f), 20f, 0.5f, 0.8f);
+                PlaceCityProp(theme.cityProps[4], "Koni 2",
+                    new Vector3(-5.4f, 0f, backZ - 4.1f), -35f, 0.5f, 0.8f);
+            }
+        }
+
+        Random.state = saved;
+    }
+
+    /// <summary>Kit binasını parsele oturt — doğal ölçeğine yakın sığdırma.</summary>
+    private void PlaceCityBuilding(string buildingName, GameObject prefab,
+        Vector3 pos, float yaw)
+    {
+        if (prefab == null) return;
+
+        GameObject obj = Instantiate(prefab, transform);
+        obj.name = buildingName;
+        obj.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        FitToFootprint(obj, MapPos(pos), 13f, 18f);
+    }
+
+    private void PlaceCityProp(GameObject prefab, string propName,
+        Vector3 pos, float yaw, float footprint, float maxH)
+    {
+        if (prefab == null) return;
+
+        GameObject obj = Instantiate(prefab, transform);
+        obj.name = propName;
+        obj.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        FitToFootprint(obj, MapPos(pos), footprint, maxH);
+    }
+
+    /// <summary>Mini park: ağaç kümesi + çalılar + bank — batı parseli.</summary>
+    private void BuildMiniPark(Vector3 center)
+    {
+        CreatePad("Park Çimi", center, new Vector2(11f, 13f),
+            new Color(0.45f, 0.72f, 0.35f), -0.015f);
+
+        if (theme.cityTrees != null && theme.cityTrees.Length > 0)
+            for (int i = 0; i < 4; i++)
+            {
+                Vector3 p = center + new Vector3(
+                    Random.Range(-4f, 4f), 0f, Random.Range(-5f, 5f));
+                GameObject tree = Instantiate(
+                    theme.cityTrees[Random.Range(0, theme.cityTrees.Length)],
+                    transform);
+                tree.name = $"Park Ağacı {i}";
+                tree.transform.rotation =
+                    Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                FitToFootprint(tree, MapPos(p), 4.5f, 8f);
+            }
+
+        if (theme.cityBushes != null && theme.cityBushes.Length > 0)
+            for (int i = 0; i < 5; i++)
+            {
+                Vector3 p = center + new Vector3(
+                    Random.Range(-4.5f, 4.5f), 0f, Random.Range(-5.5f, 5.5f));
+                GameObject bush = Instantiate(
+                    theme.cityBushes[Random.Range(0, theme.cityBushes.Length)],
+                    transform);
+                bush.name = $"Park Çalısı {i}";
+                FitToFootprint(bush, MapPos(p), 1.6f, 1.4f);
+            }
+
+        if (theme.cityProps != null && theme.cityProps.Length >= 3)
+            PlaceCityProp(theme.cityProps[2], "Park Bankı",
+                center + new Vector3(0f, 0f, -5.2f), 0f, 1.8f, 1.2f);
+    }
+
+    /// <summary>
+    /// Global Volume (Bloom + Vignette + renk ayarı) + kamerada
+    /// post-processing/SMAA + URP HDR. Profil asset olarak kalıcılaşır
+    /// (bellek profili sahne kaydında kopar — GeneratedMaterials dersi).
+    /// </summary>
+    private void BuildPostProcessing()
+    {
+        GameObject volObj = new GameObject("Post Processing");
+        volObj.transform.SetParent(transform);
+        volObj.transform.position = MapPos(Vector3.zero);
+
+        Volume vol = volObj.AddComponent<Volume>();
+        vol.isGlobal = true;
+
+        VolumeProfile profile = null;
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            const string path = "Assets/PostProfile.asset";
+            profile = UnityEditor.AssetDatabase.LoadAssetAtPath<VolumeProfile>(path);
+            if (profile == null)
+            {
+                profile = ScriptableObject.CreateInstance<VolumeProfile>();
+                UnityEditor.AssetDatabase.CreateAsset(profile, path);
+            }
+        }
+#endif
+        if (profile == null)
+            profile = ScriptableObject.CreateInstance<VolumeProfile>();
+
+        if (!profile.TryGet(out Bloom bloom)) bloom = profile.Add<Bloom>();
+        bloom.active = true;
+        bloom.intensity.Override(0.85f);
+        bloom.threshold.Override(0.9f);
+        bloom.scatter.Override(0.55f);
+
+        if (!profile.TryGet(out Vignette vig)) vig = profile.Add<Vignette>();
+        vig.active = true;
+        vig.intensity.Override(0.22f);
+        vig.smoothness.Override(0.42f);
+
+        if (!profile.TryGet(out ColorAdjustments ca))
+            ca = profile.Add<ColorAdjustments>();
+        ca.active = true;
+        ca.saturation.Override(8f);
+        ca.postExposure.Override(0.05f);
+
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            UnityEditor.EditorUtility.SetDirty(profile);
+            UnityEditor.AssetDatabase.SaveAssets();
+        }
+#endif
+        vol.sharedProfile = profile;
+
+        // Kamera: post-processing + SMAA
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            UniversalAdditionalCameraData data =
+                cam.GetUniversalAdditionalCameraData();
+            data.renderPostProcessing = true;
+            data.antialiasing =
+                AntialiasingMode.SubpixelMorphologicalAntiAliasing;
+        }
+
+        // Bloom'un gerçekten patlaması için HDR şart
+        if (GraphicsSettings.defaultRenderPipeline is
+                UniversalRenderPipelineAsset urp && !urp.supportsHDR)
+        {
+            urp.supportsHDR = true;
+#if UNITY_EDITOR
+            UnityEditor.EditorUtility.SetDirty(urp);
+#endif
+        }
+    }
+
+    private void BuildStreetLamp(Vector3 pos)
+    {
+        GameObject pole = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        pole.name = "Sokak Lambası";
+        pole.transform.SetParent(transform);
+        pole.transform.position   = MapPos(pos + Vector3.up * 1.7f);
+        pole.transform.localScale = new Vector3(0.09f, 1.7f, 0.09f);
+        if (pole.TryGetComponent<Collider>(out Collider pc)) DestroyImmediate(pc);
+        ApplyColor(pole, new Color(0.22f, 0.22f, 0.25f));
+
+        GameObject head = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        head.name = "Sokak Lambası (ışık)";
+        head.transform.SetParent(transform);
+        head.transform.position   = MapPos(pos + Vector3.up * 3.45f);
+        head.transform.localScale = new Vector3(0.55f, 0.14f, 0.55f);
+        if (head.TryGetComponent<Collider>(out Collider hc)) DestroyImmediate(hc);
+        ApplyColor(head, new Color(0.95f, 0.92f, 0.75f));
+
+        // Gerçek ışık — cadde sıcak tonla aydınlanır
+        Light lamp = head.AddComponent<Light>();
+        lamp.type      = LightType.Point;
+        lamp.range     = 9f;
+        lamp.intensity = 2.1f;
+        lamp.color     = new Color(1f, 0.88f, 0.68f);
+    }
+
+    /// <summary>Bölge aydınlatması — soğuk beyaz tepe ışığı.</summary>
+    private void AddAreaLight(string lightName, Vector3 pos, Color color,
+        float range, float intensity)
+    {
+        GameObject go = new GameObject(lightName);
+        go.transform.SetParent(transform);
+        go.transform.position = MapPos(pos);
+
+        Light l = go.AddComponent<Light>();
+        l.type      = LightType.Point;
+        l.range     = range;
+        l.intensity = intensity;
+        l.color     = color;
+    }
+
+    private void BuildCityBlock(string blockName, Vector3 pos, Vector3 size)
+    {
+        Vector3 center = MapPos(pos + Vector3.up * size.y / 2f);
+
+        if (HasTheme && theme.wallPanel != null)
+        {
+            FillBox(theme.wallPanel, blockName, center, size,
+                keepCollider: true, stretchY: false, stackY: true);
+
+            // Düz çatı — panel istifinin üstü açık kalmasın
+            GameObject roof = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            roof.name = $"{blockName} (çatı)";
+            roof.transform.SetParent(transform);
+            roof.transform.position   = center + Vector3.up * (size.y / 2f - 0.1f);
+            roof.transform.localScale = new Vector3(size.x, 0.2f, size.z);
+            if (roof.TryGetComponent<Collider>(out Collider rc))
+                DestroyImmediate(rc);
+            ApplyColor(roof, wallTone);
+        }
+        else
+        {
+            GameObject block = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            block.name = blockName;
+            block.transform.SetParent(transform);
+            block.transform.position   = center;
+            block.transform.localScale = size;
+            ApplyColor(block, wallTone);
+        }
+
+        // Çatı neon hattı — gelişmiş mahalle kimliği
+        GameObject strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        strip.name = $"{blockName} (neon)";
+        strip.transform.SetParent(transform);
+        strip.transform.position   = center + Vector3.up * (size.y / 2f + 0.06f);
+        strip.transform.localScale = new Vector3(size.x * 0.96f, 0.09f, size.z * 0.96f);
+        if (strip.TryGetComponent<Collider>(out Collider nc))
+            DestroyImmediate(nc);
+        ApplyColor(strip, coreAccent);
+    }
 
     /// <summary>
     /// Karo döşemesinin altını dolu güverteyle kapatır. Kit karoları ince
@@ -1117,18 +1497,19 @@ public class MapGenerator : MonoBehaviour
     {
         if (theme.decorProps == null || theme.decorProps.Length == 0) return;
 
-        float halfD    = garageDepth / 2f;
-        float mapLeft  = teamACenter - garageWidth / 2f;
-        float mapRight = teamBCenter + garageWidth / 2f;
+        float backZ    = -garageDepth / 2f;                 // Arka (cadde) duvarı
+        float topZ     =  garageDepth / 2f + ScrapDepth;    // Hurdalık üst duvarı
+        float mapLeft  = -totalWidth / 2f;
+        float mapRight =  totalWidth / 2f;
         int   i = 0;
 
         for (float x = mapLeft + 4f; x < mapRight - 3f; x += 9f, i++)
         {
-            // Arka duvar iç yüzü (+z'ye bakar) / ön duvar iç yüzü (-z'ye bakar)
+            // Arka duvar iç yüzü (+z'ye bakar) / hurdalık üst duvarı iç yüzü
             PlaceDecor(theme.decorProps[i % theme.decorProps.Length],
-                new Vector3(x, 0f, -halfD + 0.45f), 0f);
+                new Vector3(x, 0f, backZ + 0.45f), 0f);
             PlaceDecor(theme.decorProps[(i + 1) % theme.decorProps.Length],
-                new Vector3(x + 4.5f, 0f, halfD - 0.45f), 180f);
+                new Vector3(x + 4.5f, 0f, topZ - 0.45f), 180f);
         }
     }
 
@@ -1144,30 +1525,29 @@ public class MapGenerator : MonoBehaviour
 
     // ── Zemin, Duvar & Dekor Primitifleri ────────────────────────────────
 
-    private void CreateFloor(string floorName, float centerX, float width,
-        Color color, GameObject tileOverride = null)
+    private void CreateFloor(string floorName, float centerX, float centerZ,
+        float width, float depth, Color color, GameObject tileOverride = null)
     {
         GameObject tile = tileOverride != null ? tileOverride
             : HasTheme ? theme.floorTile : null;
 
+        Vector3 boxCenter = MapPos(new Vector3(centerX, -0.5f, centerZ));
+        Vector3 boxSize   = new Vector3(width, 1f, depth);
+
         if (HasTheme && tile != null)
         {
             // Primitif küple aynı kutu: üst yüz y=0, karolar üstte
-            FillBox(tile, floorName,
-                MapPos(new Vector3(centerX, -0.5f, 0f)),
-                new Vector3(width, 1f, garageDepth),
+            FillBox(tile, floorName, boxCenter, boxSize,
                 keepCollider: true, stretchY: false);
-            AddFloorSlab(floorName,
-                MapPos(new Vector3(centerX, -0.5f, 0f)),
-                new Vector3(width, 1f, garageDepth));
+            AddFloorSlab(floorName, boxCenter, boxSize);
             return;
         }
 
         GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
         floor.name = floorName;
         floor.transform.SetParent(transform);
-        floor.transform.position   = MapPos(new Vector3(centerX, -0.5f, 0f));
-        floor.transform.localScale = new Vector3(width, 1f, garageDepth);
+        floor.transform.position   = boxCenter;
+        floor.transform.localScale = boxSize;
         ApplyColor(floor, color);
     }
 
@@ -1229,59 +1609,104 @@ public class MapGenerator : MonoBehaviour
 
     private void CreateWalls()
     {
-        float mapLeft  = teamACenter - garageWidth / 2f;
-        float mapRight = teamBCenter + garageWidth / 2f;
-        float halfD    = garageDepth / 2f;
-        float wallY    = wallHeight / 2f;
+        float halfW = totalWidth / 2f;
+        float backZ = -garageDepth / 2f;                 // Cadde tarafı
+        float topZ  =  garageDepth / 2f + ScrapDepth;    // Hurdalık üst sınırı
+        float midZ  = (backZ + topZ) / 2f;
+        float lenZ  = topZ - backZ;
+        float wallY = FactoryWallH / 2f;
+        float t     = wallThickness;
+
+        // Dış duvarlar pencereli panel — camlardan mahalle görünür
+        GameObject win = HasTheme ? theme.windowPanel : null;
 
         CreateWall("Duvar - Sol",
-            new Vector3(mapLeft - wallThickness / 2f, wallY, 0f),
-            new Vector3(wallThickness, wallHeight, garageDepth));
+            new Vector3(-halfW - t / 2f, wallY, midZ),
+            new Vector3(t, FactoryWallH, lenZ + t * 2f),
+            new Color(0.20f, 0.70f, 0.95f), win);
 
         CreateWall("Duvar - Sağ",
-            new Vector3(mapRight + wallThickness / 2f, wallY, 0f),
-            new Vector3(wallThickness, wallHeight, garageDepth));
+            new Vector3(halfW + t / 2f, wallY, midZ),
+            new Vector3(t, FactoryWallH, lenZ + t * 2f),
+            new Color(0.20f, 0.70f, 0.95f), win);
 
-        CreateWall("Duvar - Ön",
-            new Vector3(0f, wallY, halfD + wallThickness / 2f),
-            new Vector3(totalWidth + wallThickness * 2f, wallHeight, wallThickness));
+        CreateWall("Duvar - Arka (cadde)",
+            new Vector3(0f, wallY, backZ - t / 2f),
+            new Vector3(totalWidth + t * 2f, FactoryWallH, t),
+            new Color(0.20f, 0.70f, 0.95f), win);
 
-        CreateWall("Duvar - Arka",
-            new Vector3(0f, wallY, -halfD - wallThickness / 2f),
-            new Vector3(totalWidth + wallThickness * 2f, wallHeight, wallThickness));
+        CreateWall("Duvar - Ön (hurdalık üstü)",
+            new Vector3(0f, wallY, topZ + t / 2f),
+            new Vector3(totalWidth + t * 2f, FactoryWallH, t));
 
-        // Garaj-hurdalık ayraçları: ortada geçit kalır, ışıklar takım renginde
-        CreateDivider("Ayraç - Mavi",    teamACenter + garageWidth / 2f, blueAccent);
-        CreateDivider("Ayraç - Kırmızı", teamBCenter - garageWidth / 2f, redAccent);
+        // Garaj üst duvarları — ortada kapı boşluğu (hurdalığa geçiş)
+        BuildGarageTopWall(teamACenter, "Mavi",    blueAccent);
+        BuildGarageTopWall(teamBCenter, "Kırmızı", redAccent);
+
+        // Alçak ayraç — garajlar birbirini GÖRÜR ama geçemez
+        BuildGarageDivider();
+        // Tavan YOK — açık atölye (TPS görüşü engelsiz, gökyüzü görünür)
     }
 
-    private void CreateDivider(string dividerName, float x, Color lightColor)
+    /// <summary>Garajın hurdalığa bakan duvarı: iki segment + orta kapı.</summary>
+    private void BuildGarageTopWall(float centerX, string side, Color accent)
     {
-        float wallY   = wallHeight / 2f;
-        float segLen  = garageDepth / 4f;
-        float segMidZ = garageDepth / 2f - segLen / 2f;
+        float z      = garageDepth / 2f;
+        float wallY  = FactoryWallH / 2f;
+        float segLen = (garageWidth - DoorWidth) / 2f;
+        float segOff = DoorWidth / 2f + segLen / 2f;
 
-        CreateWall($"{dividerName} (üst)",
-            new Vector3(x, wallY, segMidZ),
-            new Vector3(wallThickness, wallHeight, segLen), lightColor);
+        CreateWall($"Garaj Üst Duvar [{side}] (sol)",
+            new Vector3(centerX - segOff, wallY, z),
+            new Vector3(segLen, FactoryWallH, wallThickness), accent);
+        CreateWall($"Garaj Üst Duvar [{side}] (sağ)",
+            new Vector3(centerX + segOff, wallY, z),
+            new Vector3(segLen, FactoryWallH, wallThickness), accent);
 
-        CreateWall($"{dividerName} (alt)",
-            new Vector3(x, wallY, -segMidZ),
-            new Vector3(wallThickness, wallHeight, segLen), lightColor);
+        // Kapı ağzı işareti — takım renginde eşik
+        CreatePad($"Kapı Eşiği [{side}]",
+            new Vector3(centerX, 0f, z), new Vector2(DoorWidth + 0.4f, 1.4f),
+            accent, 0.03f);
+    }
+
+    /// <summary>İki garaj arasındaki alçak ayraç: görüş açık, geçiş kapalı.</summary>
+    private void BuildGarageDivider()
+    {
+        GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        wall.name = "Garaj Ayracı (alçak)";
+        wall.transform.SetParent(transform);
+        wall.transform.position   = MapPos(new Vector3(0f, 0.55f, 0f));
+        wall.transform.localScale = new Vector3(
+            GarageGap * 0.45f, 1.1f, garageDepth);
+        ApplyColor(wall, wallTone);   // Collider kalır — üstünden bakışılır
+
+        // Tepe ışık şeridi — iki takımı ayıran neon hat
+        GameObject strip = GameObject.CreatePrimitive(PrimitiveType.Cube);
+        strip.name = "Garaj Ayracı (ışık)";
+        strip.transform.SetParent(transform);
+        strip.transform.position   = MapPos(new Vector3(0f, 1.13f, 0f));
+        strip.transform.localScale = new Vector3(
+            GarageGap * 0.4f, 0.07f, garageDepth - 0.2f);
+        if (strip.TryGetComponent<Collider>(out Collider sc))
+            DestroyImmediate(sc);
+        ApplyColor(strip, coreAccent);
     }
 
     private void CreateWall(string wallName, Vector3 position, Vector3 scale)
         => CreateWall(wallName, position, scale, new Color(0.20f, 0.70f, 0.95f));
 
     private void CreateWall(string wallName, Vector3 position, Vector3 scale,
-        Color lightColor)
+        Color lightColor, GameObject panelOverride = null)
     {
-        if (HasTheme && theme.wallPanel != null)
+        GameObject panel = panelOverride != null ? panelOverride
+            : HasTheme ? theme.wallPanel : null;
+
+        if (HasTheme && panel != null)
         {
             // Panel döşemesi + collider container'da; neon şerit aynen kalır.
             // stackY: kısa modüller (çit vb.) y'de istiflenir, duvar boyu
             // paneller tek sıra kalır — esnetme çirkinliği olmaz
-            FillBox(theme.wallPanel, wallName, MapPos(position), scale,
+            FillBox(panel, wallName, MapPos(position), scale,
                 keepCollider: true, stretchY: false, stackY: true);
             CreateWallStrip(wallName, position, scale, lightColor);
             return;
@@ -1339,6 +1764,10 @@ public class MapGenerator : MonoBehaviour
         // (IProgressReporter olmayanlarda Awake kendini kapatır)
         if (obj.GetComponent<StationProgressSync>() == null)
             obj.AddComponent<StationProgressSync>();
+
+        // Çalışırken kıvılcım (IProgressReporter yoksa kendini kapatır)
+        if (obj.GetComponent<StationSparks>() == null)
+            obj.AddComponent<StationSparks>();
 
         T comp = obj.GetComponent<T>();
         if (comp == null)
@@ -1450,8 +1879,9 @@ public class MapGenerator : MonoBehaviour
 
     private void OnDrawGizmosSelected()
     {
-        float tAC = -(garageWidth + ScrapyardWidth) / 2f;
-        float tBC =  (garageWidth + ScrapyardWidth) / 2f;
+        float tAC = -(garageWidth + GarageGap) / 2f;
+        float tBC =  (garageWidth + GarageGap) / 2f;
+        float scrapZ = garageDepth / 2f + ScrapDepth / 2f;
         Vector3 c = transform.position;
 
         Gizmos.color = new Color(0.3f, 0.5f, 1f);
@@ -1459,8 +1889,8 @@ public class MapGenerator : MonoBehaviour
             new Vector3(garageWidth, 0.1f, garageDepth));
 
         Gizmos.color = Color.gray;
-        Gizmos.DrawWireCube(c,
-            new Vector3(ScrapyardWidth, 0.1f, garageDepth));
+        Gizmos.DrawWireCube(c + new Vector3(0f, 0f, scrapZ),
+            new Vector3(garageWidth * 2f + GarageGap, 0.1f, ScrapDepth));
 
         Gizmos.color = new Color(1f, 0.3f, 0.3f);
         Gizmos.DrawWireCube(c + new Vector3(tBC, 0f, 0f),

@@ -20,6 +20,9 @@ public class MapTheme : ScriptableObject
 
     [Header("Duvar & Bariyer")]
     public GameObject wallPanel;      // Dış duvar paneli — uzun eksende döşenir
+    public GameObject windowPanel;    // Pencereli panel (dış duvarlar — mahalle görünür)
+    public GameObject ceilingTile;    // Tavan karosu (ters döşenir — üstten görünmez)
+    public GameObject ceilingBeam;    // Tavan kirişi
     public GameObject pillar;         // Sütun/direk
     public GameObject barrierFence;   // Zone bariyeri — y'de istiflenir,
                                       // tepesine barrierColor enerji şeridi eklenir
@@ -39,6 +42,9 @@ public class MapTheme : ScriptableObject
 
     [Header("Oyuncu Karakteri (sevimli low-poly robot — boşsa primitif)")]
     public GameObject playerCharacter;
+
+    [Header("Arena Savaş Robotu (polyart karakter — boşsa primitif gövde)")]
+    public GameObject battleCharacter;
     public Material   playerCharacterMaterial;  // Paket shader'ı URP'de
                                                 // derlenmezse (mor) bu basılır
 
@@ -51,6 +57,27 @@ public class MapTheme : ScriptableObject
     [Header("Kaideler")]
     public GameObject stationBase;     // İstasyon kabuğu altı kaide plakası
     public GameObject chassisPedestal; // Şasi sergi platformu
+
+    [Header("Mahalle — Sevimli Şehir (Pandazole + SimplePoly)")]
+    public GameObject[] cityBuildings; // Cadde çevresi binalar
+    public GameObject   roadStraight;  // Yol karosu (düz)
+    public GameObject   streetLight;   // Sokak lambası
+    public GameObject[] cityCars;      // Park halinde araçlar
+    public GameObject[] cityTrees;     // Ağaçlar (çevre + park)
+    public GameObject[] cityBushes;    // Çalı/kaya dolgusu
+    public GameObject[] cityProps;     // Durak, hidrant, bank, tabela, koni
+
+    [Header("Item Şekilleri (tip → paket propu; listede olmayan tip küp kalır)")]
+    // Renk zaten tipe göre otomatik biner (VisualThemeManager property
+    // block) — şekil çeşitliliği taşınan malzemeyi uzaktan okutur.
+    public ItemShape[] itemShapes;
+
+    [System.Serializable]
+    public struct ItemShape
+    {
+        public ItemType   type;
+        public GameObject prefab;
+    }
 
     [Header("Atmosfer")]
     public GameObject[] decorProps;   // Duvar diplerine serpiştirilen proplar

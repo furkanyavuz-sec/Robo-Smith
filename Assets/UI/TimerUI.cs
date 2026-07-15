@@ -23,6 +23,7 @@ public class TimerUI : MonoBehaviour
 
     private RectTransform rectTransform;
     private Vector3       originalScale;
+    private int           lastWholeSecond = int.MaxValue;
 
     private void Awake()
     {
@@ -38,6 +39,32 @@ public class TimerUI : MonoBehaviour
         UpdateTimerDisplay(timeLeft);
         UpdatePhaseDisplay();
         UpdateVisualWarning(timeLeft);
+        UpdateCountdownAlerts(timeLeft);
+    }
+
+    /// <summary>
+    /// Hazırlık biterken anons + son 10 sn'de saniye bip'i. Timer MP'de
+    /// server'dan senkron — iki makinede de aynı anda çalar.
+    /// </summary>
+    private void UpdateCountdownAlerts(float timeLeft)
+    {
+        if (GameManager.Instance.CurrentPhase != GamePhase.Preparation)
+        {
+            lastWholeSecond = int.MaxValue;
+            return;
+        }
+
+        int sec = Mathf.CeilToInt(timeLeft);
+        if (sec == lastWholeSecond) return;
+        lastWholeSecond = sec;
+
+        if (sec == 60)
+            RaidAnnouncer.Show("SON 1 DAKİKA — ROBOTLARINI TAMAMLA!",
+                new Color(1f, 0.6f, 0f), 3f);
+        else if (sec == 30)
+            RaidAnnouncer.Show("SON 30 SANİYE!", Color.red, 2.5f);
+        else if (sec <= 10 && sec > 0)
+            Sfx.Play(Sfx.Id.Announce, 0.3f);
     }
 
     private void UpdateTimerDisplay(float timeLeft)

@@ -36,6 +36,11 @@ public class PlayerController : NetworkBehaviour
         // (Awake remote kopyada da koşar; skin her makinede görünür)
         if (GetComponent<PlayerSkin>() == null)
             gameObject.AddComponent<PlayerSkin>();
+
+        // FPS/TPS geçişi (V) her fazda çalışsın — hurdalık beklemeden
+        // (uzak kopyada IsLocalPlayer korumasıyla pasif kalır)
+        if (GetComponent<FirstPersonView>() == null)
+            gameObject.AddComponent<FirstPersonView>();
     }
 
     /// <summary>

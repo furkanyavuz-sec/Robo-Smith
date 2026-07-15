@@ -66,6 +66,11 @@ public class GameManager : MonoBehaviour
         }
         Instance = this;
 
+        // FPS sınırını kaldır: VSync monitör tazelemesine (60Hz)
+        // kilitliyordu — kare hızı serbest, takılma hissi azalır
+        QualitySettings.vSyncCount   = 0;
+        Application.targetFrameRate  = -1;
+
         // Arena sahnesine geçince de yaşamalı — timer'ı o sürdürecek
         DontDestroyOnLoad(gameObject);
     }

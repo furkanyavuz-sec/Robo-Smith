@@ -58,6 +58,8 @@ public class ScrapWindowZone : MonoBehaviour
     private readonly List<PickupItem> blueDepot = new();
     private readonly List<PickupItem> redDepot  = new();
     private readonly List<Transform>  lockedOccupants = new();
+    private PlayerInteraction[] playerCache = System.Array.Empty<PlayerInteraction>();
+    private float playerCacheTimer;
     private float[] barrierClosedY;
     private float driftTimer;          // MP client: NV ile yerel durum farkı
     private float lastNetElapsed = -1f;
@@ -455,10 +457,17 @@ public class ScrapWindowZone : MonoBehaviour
     {
         if (blueDepotAnchor == null) return;
 
-        foreach (PlayerInteraction pi in
-                 FindObjectsByType<PlayerInteraction>())
+        // Oyuncu listesi 0.5 sn'de bir taranır — FindObjects her kare pahalı
+        playerCacheTimer -= Time.deltaTime;
+        if (playerCacheTimer <= 0f)
         {
-            if (pi.HeldObject == null) continue;
+            playerCacheTimer = 0.5f;
+            playerCache = FindObjectsByType<PlayerInteraction>();
+        }
+
+        foreach (PlayerInteraction pi in playerCache)
+        {
+            if (pi == null || pi.HeldObject == null) continue;
             if (!IsInside(pi.transform.position)) continue;
 
             bool blue = !Mp || !pi.TryGetComponent<NetworkPlayer>(

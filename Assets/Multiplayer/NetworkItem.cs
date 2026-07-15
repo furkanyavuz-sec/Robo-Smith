@@ -39,8 +39,10 @@ public class NetworkItem : NetworkBehaviour
     public static bool IsMp =>
         NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
 
-    /// <summary>Bu item'ı şu an biri taşıyor mu? (server yazar, herkes okur)</summary>
-    public bool IsHeld => holderNv.Value.TryGet(out _);
+    /// <summary>Bu item'ı şu an biri taşıyor mu? (server yazar, herkes okur)
+    /// IsSpawned koruması ŞART: offline'da TryGet, SpawnManager olmadığı
+    /// için NRE fırlatır (kare başına exception = donma + kapma bozulur).</summary>
+    public bool IsHeld => IsSpawned && holderNv.Value.TryGet(out _);
 
     /// <summary>Depo kilidi — kilitliyken hiçbir oyuncu alamaz.</summary>
     public bool Locked => IsSpawned && lockedNv.Value;

@@ -45,6 +45,7 @@ public class SupplyDrone : MonoBehaviour
     private Transform[] rotors;
     private Transform attachPoint;
     private float bobPhase;
+    private TrailRenderer trail;   // Uçuş izi — takım renginde
 
     public DroneMode Mode      => mode;
     public bool IsFlying       => mode != DroneMode.Docked;
@@ -78,6 +79,18 @@ public class SupplyDrone : MonoBehaviour
             rotors[i] = transform.Find($"Rotor{i}");
 
         transform.position = homePosition + Vector3.up * 0.9f;
+
+        // Uçuş izi — takım renginde incecik şerit (uçarken görünür)
+        GameObject trailObj = new GameObject("Iz");
+        trailObj.transform.SetParent(transform, false);
+        trailObj.transform.localPosition = new Vector3(0f, -0.15f, -0.35f);
+        trail = trailObj.AddComponent<TrailRenderer>();
+        trail.time        = 0.35f;
+        trail.startWidth  = 0.16f;
+        trail.endWidth    = 0f;
+        trail.material    = StationVisuals.GetMaterial(isPlayerTeam
+            ? new Color(0.30f, 0.60f, 1f) : new Color(1f, 0.35f, 0.28f));
+        trail.emitting    = false;
     }
 
     private void Update()
@@ -87,6 +100,7 @@ public class SupplyDrone : MonoBehaviour
         bobPhase   += Time.deltaTime;
 
         SpinRotors();
+        if (trail != null) trail.emitting = IsFlying;
 
         // MP: hareket yalnız owner makinede — diğerlerine ClientNetworkTransform
         // taşır, mod DroneSync'ten aynalanır (rotorlar doğru döner)

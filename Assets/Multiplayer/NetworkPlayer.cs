@@ -60,6 +60,8 @@ public class NetworkPlayer : NetworkBehaviour
             // Uzak kopya: yalnız görsel geri bildirim (hareketi sahibi taşır)
             DamagePopup.Spawn(transform.position, "SERSEMLEDİ!",
                 new Color(0.95f, 0.45f, 0.15f), 1.1f);
+            Fx.Burst(transform.position + Vector3.up * 1.2f,
+                new Color(1f, 0.7f, 0.2f), 20, 4f);
         }
     }
 

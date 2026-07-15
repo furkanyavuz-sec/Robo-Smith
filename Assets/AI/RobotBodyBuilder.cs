@@ -33,9 +33,15 @@ public static class RobotBodyBuilder
 
         Color accent = TeamAccent(teamId);
 
-        // Tema parçaları (SciFi kit): varsa gövde pahlı kit parçalarından
-        // kurulur — dokulu, harita temasıyla uyumlu. Yoksa primitif.
+        // Tema parçaları: varsa gövde kit parçalarından kurulur. Polyart
+        // savaşçı atanmışsa TÜM gövdeyi o alır (silah propları üstüne biner).
         MapTheme th = ThemeRef.Current;
+
+        if (th != null && th.battleCharacter != null)
+        {
+            BuildHeroBody(robot, body, th.battleCharacter, sheet, tintOut);
+            return;
+        }
 
         // ── Gövde parçaları (HP rengine boyanır) ─────────────────────────
         ThemedOr(body, "Kafa", th?.robotCore, PrimitiveType.Cube,
@@ -153,6 +159,78 @@ public static class RobotBodyBuilder
                     mount + new Vector3(0f, 0.3f, 0f),
                     Vector3.one * 0.2f * scale), color);
                 break;
+        }
+    }
+
+    // ── Polyart savaşçı gövdesi ──────────────────────────────────────────
+
+    /// <summary>
+    /// Tüm gövde = rigged polyart karakter (SciFi Warrior). Takım/HP rengi
+    /// property block ile tüm parçalarına biner; silah propları omuz
+    /// hizasına monte edilir (renk dili korunur). Animator prefabla gelir —
+    /// varsayılan durumu (silahlı idle) kendi oynar.
+    /// </summary>
+    private static void BuildHeroBody(GameObject robot, GameObject body,
+        GameObject heroPrefab, RobotStatSheet sheet, List<Renderer> tintOut)
+    {
+        // Kök küp görseli gizle — gövde artık karakter
+        if (robot.TryGetComponent<Renderer>(out Renderer rootRend))
+            rootRend.enabled = false;
+
+        GameObject hero = Object.Instantiate(heroPrefab, body.transform);
+        hero.name = "Hero";
+
+        foreach (Collider c in hero.GetComponentsInChildren<Collider>())
+            Object.Destroy(c);
+
+        Renderer[] rends = hero.GetComponentsInChildren<Renderer>();
+        if (rends.Length > 0)
+        {
+            Bounds b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+
+            // ~1.7m boy; taban eski gövde tabanına (yerden ~0.5 altı) oturur
+            float s = 1.7f / Mathf.Max(b.size.y, 0.01f);
+            hero.transform.localScale *= s;
+
+            b = rends[0].bounds;
+            for (int i = 1; i < rends.Length; i++) b.Encapsulate(rends[i].bounds);
+
+            float baseY = rootRend != null
+                ? rootRend.bounds.min.y
+                : robot.transform.position.y - 0.5f;
+            hero.transform.position += new Vector3(
+                robot.transform.position.x - b.center.x,
+                baseY - b.min.y,
+                robot.transform.position.z - b.center.z);
+
+            tintOut.AddRange(rends);
+        }
+
+        // Silah propları — omuz/sırt hizası (karakter 1.7m)
+        Vector3[] mounts =
+        {
+            new Vector3( 0.48f, 1.38f,  0f),
+            new Vector3(-0.48f, 1.38f,  0f),
+            new Vector3( 0f,    1.62f, -0.28f),
+        };
+
+        int mountIndex = 0;
+        foreach (WeaponData w in sheet.equippedWeapons)
+        {
+            if (w == null || mountIndex >= mounts.Length) continue;
+            BuildWeaponProp(body, w, mounts[mountIndex]);
+            mountIndex++;
+        }
+
+        // Modül ışığı — göğüs hizası
+        if (sheet.equippedModule != ModuleType.None)
+        {
+            Color moduleColor = StationVisuals.ItemColor(
+                ModuleCatalog.ToItem(sheet.equippedModule));
+            Tint(PartRotated(body, "ModulIsigi", PrimitiveType.Cube,
+                new Vector3(0f, 1.05f, 0.24f), Vector3.one * 0.15f,
+                new Vector3(0f, 0f, 45f)), moduleColor);
         }
     }
 

@@ -68,6 +68,17 @@ public class PlayerInteraction : NetworkBehaviour
         NetworkObjectReference newRef)
     {
         heldObject = newRef.TryGet(out NetworkObject no) ? no.gameObject : null;
+
+        // Alma parlaması — MP'de her makinede NV değişiminden tetiklenir
+        if (heldObject != null) PickupFlash(heldObject);
+    }
+
+    /// <summary>Item alınınca içerik renginde küçük parlama.</summary>
+    private static void PickupFlash(GameObject item)
+    {
+        if (item.TryGetComponent<PickupItem>(out PickupItem pi))
+            Fx.Burst(item.transform.position + Vector3.up * 0.3f,
+                StationVisuals.ItemColor(pi.Type), 14, 2.6f, 0.1f, 0.35f);
     }
 
     /// <summary>
@@ -389,6 +400,7 @@ public class PlayerInteraction : NetworkBehaviour
             col.isTrigger = true;
 
         heldObject.transform.SetParent(holdPoint);
+        PickupFlash(heldObject);   // Offline yolu (MP'de NV değişimi yapar)
     }
 
     /// <summary>TrashBin / Processor çağırır: nesneyi elden bırak ama yok etme.</summary>

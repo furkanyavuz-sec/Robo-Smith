@@ -206,6 +206,11 @@ public static class StationVisuals
                 UnityEditor.AssetDatabase.CreateAsset(asset, path);
             }
 
+            // Emission: bloom altında parlak renkler (neon/beacon) ışır,
+            // koyu tonlar fark edilmez. Eski asset'lere de uygulanır.
+            ApplyEmission(asset, color);
+            UnityEditor.EditorUtility.SetDirty(asset);
+
             matCache[color] = asset;
             return asset;
         }
@@ -214,8 +219,15 @@ public static class StationVisuals
         // Runtime (arena robotları, mermiler, drone görselleri): bellek
         // materyali yeterli — aynı oturumda üretilir ve kullanılır
         Material mat = new Material(shader) { color = color };
+        ApplyEmission(mat, color);
         matCache[color] = mat;
         return mat;
+    }
+
+    private static void ApplyEmission(Material mat, Color color)
+    {
+        mat.EnableKeyword("_EMISSION");
+        mat.SetColor("_EmissionColor", color * 0.55f);
     }
 
     // ── İstasyon Dekorları ───────────────────────────────────────────────

@@ -22,7 +22,8 @@ public static class Sfx
         Explosion,    // Robot ölümü
         Laser,        // Lazer atışı
         Rocket,       // Roket fırlatma
-        Emp           // EMP küresi
+        Emp,          // EMP küresi
+        Footstep      // Robot adımı (kısa metalik tık)
     }
 
     private const int RATE = 22050;
@@ -83,6 +84,8 @@ public static class Sfx
             Id.Laser      => Tone(1400f, 380f, 0.12f, 2f, 0.45f),
             Id.Rocket     => Mix(Noise(0.35f, 1.5f, 0.6f), Tone(140f, 90f, 0.35f, 1.5f, 0.4f)),
             Id.Emp        => Wobble(300f, 9f, 0.35f, 0.5f),
+            Id.Footstep   => Mix(Noise(0.045f, 5f, 0.28f),
+                                 Tone(170f, 120f, 0.05f, 4f, 0.3f)),
             _             => null
         };
 

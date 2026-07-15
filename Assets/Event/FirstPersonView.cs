@@ -15,6 +15,10 @@ public class FirstPersonView : MonoBehaviour
     /// <summary>PlayerMelee FPV'de Sol Tık yumruğunu buna bakarak açar.</summary>
     public static bool IsActive { get; private set; }
 
+    // Tek tuş (V) kalıcı FPS modu — hurdalık zorlamasından bağımsız,
+    // oyunun her fazında geçerli (lokal oyuncu; statik = tek yerel mod)
+    private static bool manualFps;
+
     [Header("Bakış Ayarları")]
     [SerializeField] private float mouseSensitivity = 0.12f;  // derece / piksel
     [SerializeField] private float eyeHeight  = 1.55f;
@@ -52,9 +56,20 @@ public class FirstPersonView : MonoBehaviour
         if (cam == null) cam = Camera.main;
         if (cam == null) return;
 
+        // ── Tek tuş FPS/TPS geçişi (V) — oyunun tamamında ───────────────
+        // Drone konsolundayken kapalı (kamera drone'da, kontrol kilitli);
+        // sersemleme (yalnız controller kapanır) geçişi ENGELLEMEZ.
+        bool consoleLocked = interaction != null && !interaction.enabled;
+
+        Keyboard kb = Keyboard.current;
+        if (kb != null && kb.vKey.wasPressedThisFrame && !consoleLocked)
+            manualFps = !manualFps;
+
+        // Hurdalık kapanı FPV'yi eskisi gibi zorlar; V her yerde açar
         ScrapWindowZone zone = ScrapWindowZone.Instance;
-        bool shouldBeActive = zone != null && zone.IsOpen &&
-                              zone.IsInside(transform.position);
+        bool zoneForced = zone != null && zone.IsOpen &&
+                          zone.IsInside(transform.position);
+        bool shouldBeActive = (manualFps || zoneForced) && !consoleLocked;
 
         if (shouldBeActive && !active)  Enter();
         if (!shouldBeActive && active)  Exit();

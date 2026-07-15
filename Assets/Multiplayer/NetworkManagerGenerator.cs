@@ -109,6 +109,17 @@ public void GenerateNetworkManager()
                 changed = true;
             }
 
+            // Parent senkronu KAPALI: MP'de item hiç parent'lanmıyor
+            // (SetHolder pozisyon takibi); offline'da ise ele/masaya
+            // SetParent her seferinde "networkManager is not listening,
+            // start a server or host before re-parenting" hatası basıyordu
+            NetworkObject no = root.GetComponent<NetworkObject>();
+            if (no.AutoObjectParentSync)
+            {
+                no.AutoObjectParentSync = false;
+                changed = true;
+            }
+
             if (changed)
             {
                 UnityEditor.PrefabUtility.SaveAsPrefabAsset(root, path);

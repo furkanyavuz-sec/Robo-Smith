@@ -14,6 +14,9 @@ public class ItemVisual : MonoBehaviour
     {
         PickupItem item = GetComponent<PickupItem>();
 
+        // Prefabda seri kayıtlı tip için şekil (SetType çağrılmadıysa)
+        ItemShapeBuilder.Apply(item);
+
         VisualThemeManager theme =
             FindAnyObjectByType<VisualThemeManager>();
 

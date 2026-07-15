@@ -31,6 +31,8 @@ public class PlayerSkin : MonoBehaviour
     private float    retryTimer;
     private float    smoothSpeed;
     private float    switchTimer;
+    private float    stepTimer;
+    private PlayerInteraction interaction;   // Adım sesi yalnız lokal oyuncuda
 
     private void Update()
     {
@@ -67,6 +69,17 @@ public class PlayerSkin : MonoBehaviour
             switchTimer = MIN_SWITCH;
             anim.CrossFade("StaticIdle", 0.15f);
         }
+
+        // Adım tıkırtısı — sadece kendi robotumuz (Sfx 2D çalar)
+        if (running && interaction != null && interaction.IsLocalPlayer)
+        {
+            stepTimer -= Time.deltaTime;
+            if (stepTimer <= 0f)
+            {
+                stepTimer = 0.32f;
+                Sfx.Play(Sfx.Id.Footstep, 0.22f);
+            }
+        }
     }
 
     private void TryBuild()
@@ -74,6 +87,8 @@ public class PlayerSkin : MonoBehaviour
         MapTheme th = ThemeRef.Current;
         if (th == null || th.playerCharacter == null) return;   // Lobby/temasız
         if (transform.Find("Skin") != null) { built = true; return; }
+
+        interaction = GetComponent<PlayerInteraction>();
 
         // Deterministik parça seçimi: randomizer Awake'te Random kullanır —
         // seed'i oyuncu kimliğine sabitle, sonra RNG durumunu geri koy

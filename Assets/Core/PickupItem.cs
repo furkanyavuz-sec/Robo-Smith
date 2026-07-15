@@ -10,5 +10,6 @@ public class PickupItem : MonoBehaviour
     public void SetType(ItemType type)
     {
         Type = type;
+        ItemShapeBuilder.Apply(this);   // Tipe uygun paket şekli giydir
     }
 }
